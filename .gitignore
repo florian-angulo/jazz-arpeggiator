@@ -1,0 +1,12 @@
+# Sheetmusic from arpeggiator
+*.png
+*.xml
+
+# From notebooks
+*-checkpoint*
+
+# MNIST dataset
+data/
+
+# Realbook additional data
+jazz_xlab/
