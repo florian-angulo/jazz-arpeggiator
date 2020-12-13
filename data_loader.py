@@ -6,6 +6,7 @@ Get relevant chunks from the dataset
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import re
 
 """
 A1: Major, minor, diminished: N (which means no chord), maj, min, dim;
@@ -24,11 +25,30 @@ def accept_chunk(chunk):
     AVAILABLE_QUALITY = ["maj", "min", "dim", "maj7", "min7", "7", "dim"] #dim7 ?
 
     for chord in chunk:
-        pitch, color = chord.split(":")
-        if color not in AVAILABLE_QUALITY:
-            return False
+        pitch, quality = chord.split(":")
 
-    return True        
+        if bool(re.search('aug|sus|hdim', quality)): # TODO : a prendre en compte un jour
+            return False, None
+        
+        if quality not in AVAILABLE_QUALITY:
+            # TODO : maj/7, min/7 : à considérer comme des maj7 / min7 ou des maj/min ?
+            if "maj(7" in chord :
+                return True, pitch + ":maj7"  
+            elif "min(7" in chord :
+                return True, pitch + ":min7"
+            elif "dim" in chord:
+                return True, pitch + ":dim"
+            elif "7" in chord:
+                return True, pitch + ":7"
+            elif "min" in chord:
+                return True, pitch + ":min"
+            elif bool(re.search('maj|9|11', quality)):
+                return True, pitch + ":maj"
+            else:
+                # print(chord)
+                return False, None
+
+    return True, chunk        
 
 def main():
 
@@ -78,9 +98,21 @@ def main():
 
     all_chunks_ok = []
     for chunk in all_chunks:
-        if accept_chunk(chunk):
-            all_chunks_ok.append(chunk)
+        is_accepted, transformed_chunk = accept_chunk(chunk)
+        if is_accepted:
+            all_chunks_ok.append(transformed_chunk)
 
     print('total number of accepted chunks : ', len(all_chunks_ok), ' (ratio : ', round(len(all_chunks_ok)/len(all_chunks), 2), ')')
+
+
+def test():
+    str1 = "A#:maj(7,9,11,13)"
+    str2 = "A#:maj(2,*3)/7"
+    str3 = "C:maj/7"
+    str4 = "D:min6"
+    print(bool(re.search('7|9|11', str4)))
+
+
+
 if __name__ == '__main__':
     main()
