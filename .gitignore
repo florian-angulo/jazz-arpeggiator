@@ -10,3 +10,6 @@ data/
 
 # Realbook additional data
 jazz_xlab/
+
+# Saved tensors
+*.pt
