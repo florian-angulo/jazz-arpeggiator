@@ -22,6 +22,20 @@ QUALITY_LIST = ["maj", "min", "dim", "maj7", "min7", "7", "dim7"]
 
 
 def sentence_to_chunks(sentence, N_CHORDS=16):
+    """ Convert a sentence into a list of chunks of N_CHORDS chords
+
+    Parameters
+    ----------
+    sentence : list
+        List of chords (str) from the realbook dataset
+    N_CHORDS : int, optional
+        Number of chords in a chunk 
+
+    Returns
+    -------
+    list
+        List of lists of N_CHORDS chords (str)
+    """
     chunks = []
     for i in range(len(sentence) - N_CHORDS):
         chunks.append(sentence[i : i+N_CHORDS])
@@ -30,9 +44,21 @@ def sentence_to_chunks(sentence, N_CHORDS=16):
 
 
 def accept_chunk(chunk):
+    """ Accept / modify a chunk depending on the set of qualities
+    Simplify complex colors (ex : D:maj(2,*3)/b7) to match an available chord (ex : D:maj)
 
-    QUALITY_LIST = ["maj", "min", "dim", "maj7", "min7", "7", "dim"]
+    Parameters
+    ----------
+    chunk : list
+        List of chords (str)
 
+    Returns
+    -------
+    bool, list
+        True, new_chunk : if the chunk is accepted, and new_chunk may be a modified version of the original chunk
+        False, None : if the chunk is not accepted i.e. the quality of a chord is not in the set of considered qualities 
+    
+    """
     for i, chord in enumerate(chunk):
         pitch, quality = chord.split(":")
 
@@ -63,7 +89,13 @@ def accept_chunk(chunk):
 
 
 def get_chunks():
+    """ Get chunks of chords from the realbook dataset
 
+    Returns
+    -------
+    list
+        List of list of accepted chords (as str)
+    """
     # Repeated chord accepted or not (i.e. if REPEAT==False: C:maj C:maj C:maj C:maj G:9 G:9 -> C:maj C:9)
     REPEAT = False 
 
@@ -102,12 +134,15 @@ def get_chunks():
     print("."*50)
 
     
+    # Convert sentences into chunks
     all_chunks = []
     for sentence in sentences:
         all_chunks += sentence_to_chunks(sentence, N_CHORDS)
     
     print("total number of chunks : ", len(all_chunks))
 
+
+    # Accept of reject some chunks depending on the qualities chosen
     all_chunks_ok = []
     for chunk in all_chunks:
         is_accepted, transformed_chunk = accept_chunk(chunk)
@@ -121,6 +156,16 @@ def get_chunks():
 
 
 def plot_chord(tensor_chord):
+    """ Plot a one-hot tensor
+
+    Parameters
+    ----------
+    torch.tensor
+        Tensor of size len(QUALITY_LIST) x len(PITCH_LIST)
+        It must be full of zeros, except at one index
+
+    
+    """
     fig, ax = plt.subplots(1,1)
 
     ax.imshow(tensor_chord)
@@ -134,6 +179,20 @@ def plot_chord(tensor_chord):
 
 
 def chunk_to_tensor(chunk):
+    """ Convert a chunk into a one-hot tensor 
+
+    Parameters
+    ----------
+    list
+        List of accepted chords (as str)
+
+    Returns
+    -------
+    torch.tensor
+        Tensor of size N_CHORDS x N_PITCH x N_QUALITIES
+        Each sub-tensor of size N_PITCH x N_QUALITIES is a one-hot tensor
+
+    """
     one_hot_tensor = torch.zeros(len(chunk), len(PITCH_LIST), len(QUALITY_LIST))
     
     for index_chord, chord in enumerate(chunk):
@@ -150,6 +209,20 @@ def chunk_to_tensor(chunk):
 
 
 def tensor_to_chunk(one_hot_tensor):
+    """ Convert a tensor into a chunk of chords
+
+    Parameters
+    ----------
+    torch.tensor
+        Tensor of size N_CHORDS x N_PITCH x N_QUALITIES
+        Each sub-tensor of size N_PITCH x N_QUALITIES must be a one-hot tensor
+
+    Returns
+    -------
+    list
+        List of accepted chords (as str) 
+    
+    """
     chords = []
     index_chord, index_pitch, index_quality = torch.where(one_hot_tensor == 1)
 
@@ -158,9 +231,19 @@ def tensor_to_chunk(one_hot_tensor):
     
     print(chords)
 
+    return chords
+
 
 
 def set_one_hot_dataset():
+    """ Compute and export a dataset composed of chunks of chords
+
+    Returns
+    -------
+    torch.tensor
+        Tensor of size N_CHUNKS x N_CHORDS x N_PITCH x N_QUALITIES
+        It contains chords from the realbook dataset as one-hot vectors
+    """
     all_chunks = get_chunks()
     dataset_one_hot = torch.zeros(len(all_chunks), 16, len(PITCH_LIST), len(QUALITY_LIST))
 
@@ -178,6 +261,15 @@ def set_one_hot_dataset():
 
 
 def import_dataset():
+    """ Import the dataset
+
+    Returns
+    -------
+    torch.tensor
+        Tensor of size N_CHUNKS x N_CHORDS x N_PITCH x N_QUALITIES
+        It contains chords from the realbook dataset as one-hot vectors
+    
+    """
     try:
         dataset_one_hot = torch.load("dataset_chunks.pt")
     except FileNotFoundError:
