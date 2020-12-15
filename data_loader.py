@@ -97,7 +97,7 @@ def get_chunks():
         List of list of accepted chords (as str)
     """
     # Repeated chord accepted or not (i.e. if REPEAT==False: C:maj C:maj C:maj C:maj G:9 G:9 -> C:maj C:9)
-    REPEAT = False 
+    REPEAT = True
 
     # Number of chords in a chunk
     N_CHORDS = 16
@@ -126,7 +126,7 @@ def get_chunks():
         elif chord == "_END_":
             sentences.append(current_sentence)
         else:
-            if chord != last_chord and REPEAT == False:
+            # if chord != last_chord and REPEAT == False:
                 current_sentence.append(chord) 
                 last_chord = chord
     print('total number of sentences : ', len(sentences))

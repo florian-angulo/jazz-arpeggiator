@@ -1,27 +1,28 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sat Dec  5 13:02:27 2020
+Created on Tue Dec 15 19:00:34 2020
 
 @author: louis
 """
+
 import torch
 import torch.utils.data
 from torch import nn, optim
 from torch.nn import functional as F
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
-
+import data_loader
 
 device = torch.device("cpu")
 class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
 
-        self.fc1 = nn.Linear(784, 400)
+        self.fc1 = nn.Linear(16*12*7, 400)
         self.fc21 = nn.Linear(400, 40)
         self.fc22 = nn.Linear(400, 40)
         self.fc3 = nn.Linear(40, 400)
-        self.fc4 = nn.Linear(400, 784)
+        self.fc4 = nn.Linear(400, 16*12*7)
 
     def encode(self, x):
         h1 = F.relu(self.fc1(x))
@@ -34,17 +35,18 @@ class VAE(nn.Module):
 
     def decode(self, z):
         h3 = F.relu(self.fc3(z))
-        return torch.sigmoid(self.fc4(h3))
+        soft = nn.Softmax(dim=1)
+        return soft(self.fc4(h3).view(-1, 16, 12*7))
 
     def forward(self, x):
-        mu, logvar = self.encode(x.view(-1, 784))
+        mu, logvar = self.encode(x.view(-1, 16*12*7))
         z = self.reparameterize(mu, logvar)
         return self.decode(z), mu, logvar
 
 
 # Reconstruction + KL divergence losses summed over all elements and batch
 def loss_function(recon_x, x, mu, logvar, beta):
-    BCE = F.binary_cross_entropy(recon_x, x.view(-1, 784), reduction='sum')
+    BCE = F.binary_cross_entropy(recon_x.view(-1, 16*12*7), x.view(-1, 16*12*7), reduction='sum')
 
     # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
@@ -56,9 +58,10 @@ def train(epoch):
     model.train()
     train_loss = 0
     beta = epoch/epochs
-    for batch_idx, (data, _) in enumerate(mnist_trainset):
+    for batch_idx, data in enumerate(realbook_dataset):
         data = data.to(device)
         optimizer.zero_grad()
+        
         recon_batch, mu, logvar = model(data)
         loss = loss_function(recon_batch, data, mu, logvar, beta)
         loss.backward()
@@ -66,12 +69,12 @@ def train(epoch):
         optimizer.step()
         if batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(mnist_trainset.dataset),
-                100. * batch_idx / len(mnist_trainset),
+                epoch, batch_idx * len(data), Nchunks,
+                100. * batch_idx / Nchunks,
                 loss.item() / len(data)))
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
-          epoch, train_loss / len(mnist_trainset.dataset)))
+          epoch, train_loss / Nchunks))
 
 
 def test(epoch):
@@ -93,26 +96,29 @@ def test(epoch):
     test_loss /= len(mnist_testset.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
 
+
 epochs = 10
-batch_size = 64
+batch_size = 128
 log_interval = 100
-mnist_trainset = torch.utils.data.DataLoader(
-    datasets.MNIST('../data', train=True, download=True,
-                   transform=transforms.ToTensor()),
-    batch_size=batch_size, shuffle=True)
+# mnist_trainset = torch.utils.data.DataLoader(
+#     datasets.MNIST('../data', train=True, download=True,
+#                    transform=transforms.ToTensor()),
+#     batch_size=batch_size, shuffle=True)
 # mnist_testset = test_loader = torch.utils.data.DataLoader(
 #     datasets.MNIST('../data', train=False, transform=transforms.ToTensor()),
 #     batch_size=batch_size, shuffle=True)
 
-# model = VAE().to(device)
-# optimizer = optim.Adam(model.parameters(), lr=7e-4)
+realbook_dataset = data_loader.import_dataset()
+Nchunks = len(realbook_dataset)
+realbook_dataset = torch.split(realbook_dataset, batch_size, 0)
+model = VAE().to(device)
+optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
-# if __name__ == "__main__":
-#     for epoch in range(1, epochs + 1):
-#         train(epoch)
-#         test(epoch)
-#         with torch.no_grad():
-#             sample = torch.randn(64, 40).to(device)
-#             sample = model.decode(sample).cpu()
-#             save_image(sample.view(64, 1, 28, 28),
-#                        'results/sample_' + str(epoch) + '.png')
+if __name__ == "__main__":
+    for epoch in range(1, epochs + 1):
+        train(epoch)
+        # test(epoch)
+    with torch.no_grad():
+        sample = torch.randn(1, 40).to(device)
+        sample = model.decode(sample).cpu()
+        sample = sample.numpy()
