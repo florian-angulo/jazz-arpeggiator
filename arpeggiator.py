@@ -29,7 +29,7 @@ environment.set("musicxmlPath", "C:/Program Files/MuseScore 3/bin/MuseScore3.exe
 
 
 
-class chord:
+class Chord:
     """ Single chord
 
     Attributes
@@ -105,10 +105,12 @@ class chord:
         self.cardinality_ordered = len(self.list_notes_ordered)
 
     
-    def _set_stream(self):
+    def _set_stream(self, stream_output=None):
         """ Compute the arpeggio
         """
-        stream_output = stream.Stream()
+    
+        if stream_output == None:
+            stream_output = stream.Stream()
 
         n_tot_notes = int(self.duration / self.speed)
 
@@ -124,6 +126,9 @@ class chord:
             stream_output.append(current_note)
 
         return stream_output
+
+    def get_stream(self, stream_output):
+        return self._set_stream(stream_output)
 
 
     def print_params(self):
@@ -161,13 +166,59 @@ class chord:
     
 
 
-def main():
+def convert_format(chord_str):
+    return "".join(chord_str.split(":"))
+
+
+
+
+def output_list_chords(list_chords_str):
+    n_bar = len(list_chords_str)
+    list_chords = []
+
+    for chord_str in list_chords_str:
+        chord_format = convert_format(chord_str)
+        list_chords.append(Chord(
+            name=chord_format,
+            duration=4,
+            order="excl",
+            speed=0.33333333333333333
+        ))
+
+    total_stream = stream.Stream()
+
+    for chord in list_chords:
+        chord.print_params()
+        print("*"*20)
+
+        total_stream = chord.get_stream(total_stream)
+
+    conv_musicxml = ConverterMusicXML()
+    out_filepath = conv_musicxml.write(total_stream, 'musicxml', fp='./total.xml', subformats=['png'])
+    image = Image.open('total-1.png')
+    image.show()
+
+    total_stream.show('midi')
+
+
+
+
+def test():
     n_bar = 2 # TODO : on suppose toujours que la key signature vaut 4/4
-    c1 = chord("Adim7", duration=4*n_bar, order="excl", speed=0.33333333333)
+    c1 = Chord("Adim7", duration=4*n_bar, order="excl", speed=0.33333333333)
 
     c1.print_params()
     c1.visualize()
     c1.output()
+
+
+def main():
+    list_chords_str = ['G:maj7','B:dim','C:maj7','D#:min','D#:min7','C#:maj','D:maj','C:maj7','C:dim7','A:dim','G#:dim','C:maj7','F#:min7','F#:min','C:dim7','A#:maj']
+    output_list_chords(list_chords_str)
+
+
+
+
 
 if __name__ == '__main__':
     main()
