@@ -12,17 +12,26 @@ from torch.nn import functional as F
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
 import data_loader
+import sample_to_chords as s2c
 
 device = torch.device("cpu")
+
 class VAE(nn.Module):
+    N_CHORDS = 16
+    N_PITCH = 12
+    N_QUALITY = 7 # A changer aussi dans data_loader
+    
+    SIZE_LATENT = 100
+    
     def __init__(self):
         super(VAE, self).__init__()
 
-        self.fc1 = nn.Linear(16*12*7, 400)
-        self.fc21 = nn.Linear(400, 40)
-        self.fc22 = nn.Linear(400, 40)
-        self.fc3 = nn.Linear(40, 400)
-        self.fc4 = nn.Linear(400, 16*12*7)
+        self.fc1 = nn.Linear(self.N_CHORDS * self.N_PITCH * self.N_QUALITY, 400)
+        self.fc21 = nn.Linear(400, self.SIZE_LATENT)
+        self.fc22 = nn.Linear(400, self.SIZE_LATENT)
+        
+        self.fc3 = nn.Linear(self.SIZE_LATENT, 400)
+        self.fc4 = nn.Linear(400, self.N_CHORDS * self.N_PITCH * self.N_QUALITY)
 
     def encode(self, x):
         h1 = F.relu(self.fc1(x))
@@ -36,12 +45,13 @@ class VAE(nn.Module):
     def decode(self, z):
         h3 = F.relu(self.fc3(z))
         soft = nn.Softmax(dim=1)
-        return soft(self.fc4(h3).view(-1, 16, 12*7))
+        return soft(self.fc4(h3).view(-1, self.N_CHORDS, self.N_PITCH * self.N_QUALITY))
 
     def forward(self, x):
-        mu, logvar = self.encode(x.view(-1, 16*12*7))
+        mu, logvar = self.encode(x.view(-1, self.N_CHORDS*self.N_PITCH * self.N_QUALITY))
         z = self.reparameterize(mu, logvar)
         return self.decode(z), mu, logvar
+
 
 
 # Reconstruction + KL divergence losses summed over all elements and batch
@@ -70,7 +80,7 @@ def train(epoch):
         if batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), Nchunks,
-                100. * batch_idx / Nchunks,
+                100. * batch_idx * len(data) / Nchunks,
                 loss.item() / len(data)))
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
@@ -100,13 +110,7 @@ def test(epoch):
 epochs = 10
 batch_size = 128
 log_interval = 100
-# mnist_trainset = torch.utils.data.DataLoader(
-#     datasets.MNIST('../data', train=True, download=True,
-#                    transform=transforms.ToTensor()),
-#     batch_size=batch_size, shuffle=True)
-# mnist_testset = test_loader = torch.utils.data.DataLoader(
-#     datasets.MNIST('../data', train=False, transform=transforms.ToTensor()),
-#     batch_size=batch_size, shuffle=True)
+
 
 realbook_dataset = data_loader.import_dataset()
 Nchunks = len(realbook_dataset)
@@ -115,10 +119,20 @@ model = VAE().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 if __name__ == "__main__":
-    for epoch in range(1, epochs + 1):
-        train(epoch)
-        # test(epoch)
+    LOAD = False
+
+    if LOAD:
+        model.load_state_dict(torch.load("./model_realbook.pt"))
+    else:
+        for epoch in range(1, epochs + 1):
+            train(epoch)
+            # test(epoch)
+        torch.save(model.state_dict(), "./model_realbook.pt")
+
+
     with torch.no_grad():
         sample = torch.randn(1, 40).to(device)
         sample = model.decode(sample).cpu()
         sample = sample.numpy()
+
+        print(s2c.sample_to_chords(sample))
