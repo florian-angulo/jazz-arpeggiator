@@ -5,6 +5,7 @@ Created on Tue Dec 15 19:00:34 2020
 @author: louis
 """
 
+import argparse
 import torch
 import torch.utils.data
 from torch import nn, optim
@@ -14,24 +15,30 @@ from torchvision.utils import save_image
 import data_loader
 import sample_to_chords as s2c
 
-device = torch.device("cpu")
+if torch.cuda.is_available():  
+  dev = "cuda:0" 
+else:  
+  dev = "cpu"  
+print('using',dev)
+device = torch.device(dev)
 
 class VAE(nn.Module):
     N_CHORDS = 16
     N_PITCH = 12
     N_QUALITY = 7 # A changer aussi dans data_loader
     
-    SIZE_LATENT = 100
+    SIZE_HIDDEN = 400
+    SIZE_LATENT = 40
     
     def __init__(self):
         super(VAE, self).__init__()
 
-        self.fc1 = nn.Linear(self.N_CHORDS * self.N_PITCH * self.N_QUALITY, 400)
-        self.fc21 = nn.Linear(400, self.SIZE_LATENT)
-        self.fc22 = nn.Linear(400, self.SIZE_LATENT)
+        self.fc1 = nn.Linear(self.N_CHORDS * self.N_PITCH * self.N_QUALITY, self.SIZE_HIDDEN)
+        self.fc21 = nn.Linear(self.SIZE_HIDDEN, self.SIZE_LATENT)
+        self.fc22 = nn.Linear(self.SIZE_HIDDEN, self.SIZE_LATENT)
         
-        self.fc3 = nn.Linear(self.SIZE_LATENT, 400)
-        self.fc4 = nn.Linear(400, self.N_CHORDS * self.N_PITCH * self.N_QUALITY)
+        self.fc3 = nn.Linear(self.SIZE_LATENT, self.SIZE_HIDDEN)
+        self.fc4 = nn.Linear(self.SIZE_HIDDEN, self.N_CHORDS * self.N_PITCH * self.N_QUALITY)
 
     def encode(self, x):
         h1 = F.relu(self.fc1(x))
@@ -44,7 +51,7 @@ class VAE(nn.Module):
 
     def decode(self, z):
         h3 = F.relu(self.fc3(z))
-        soft = nn.Softmax(dim=1)
+        soft = nn.Sigmoid()
         return soft(self.fc4(h3).view(-1, self.N_CHORDS, self.N_PITCH * self.N_QUALITY))
 
     def forward(self, x):
@@ -109,7 +116,7 @@ def test(epoch):
 
 epochs = 10
 batch_size = 128
-log_interval = 100
+log_interval = 40
 
 
 realbook_dataset = data_loader.import_dataset()
@@ -119,7 +126,11 @@ model = VAE().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 if __name__ == "__main__":
-    LOAD = False
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--load', dest='load', action='store_true')
+    parser.add_argument('--no-load', dest='load', action='store_false')
+    parser.set_defaults(LOAD=False)
+    LOAD = parser.parse_args().load
 
     if LOAD:
         model.load_state_dict(torch.load("./model_realbook.pt"))
