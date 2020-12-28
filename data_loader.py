@@ -196,8 +196,7 @@ def chunk_to_tensor(chunk):
     Returns
     -------
     torch.tensor
-        Tensor of size N_CHORDS x N_PITCH x N_QUALITIES
-        Each sub-tensor of size N_PITCH x N_QUALITIES is a one-hot tensor
+        Tensor of size N_CHORDS x N_PITCH x N_MAIN_QUALITIES x N_EXTRA_QUALITIES
 
     """
     one_hot_tensor = torch.zeros(len(chunk), len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
@@ -221,8 +220,7 @@ def tensor_to_chunk(one_hot_tensor):
     Parameters
     ----------
     torch.tensor
-        Tensor of size N_CHORDS x N_PITCH x N_QUALITIES
-        Each sub-tensor of size N_PITCH x N_QUALITIES must be a one-hot tensor
+        Tensor of size N_CHORDS x N_PITCH x N_MAIN_QUALITIES x N_EXTRA_QUALITIES
 
     Returns
     -------
@@ -231,12 +229,18 @@ def tensor_to_chunk(one_hot_tensor):
     
     """
     chords = []
-    index_chord, index_pitch, index_quality = torch.where(one_hot_tensor == 1)
 
-    for i in index_chord:
-        chords.append(PITCH_LIST[index_pitch[i]] + ":" + QUALITY_LIST[index_quality[i]])
-    
-    print(chords)
+    for chord_i in range(one_hot_tensor.shape[0]): 
+        index_pitch, index_main_quality, index_extra_quality = torch.where(one_hot_tensor[chord_i,:,:,:] == 1)
+
+        chord_str = PITCH_LIST[index_pitch[0]] + ":" + MAIN_QUALITY_LIST[index_main_quality[0]] + ":"
+
+        print(index_extra_quality)
+
+        for extra_i in index_extra_quality:
+            chord_str += EXTRA_QUALITY_LIST[extra_i] + ":"
+        
+        chords.append(chord_str)
 
     return chords
 
@@ -300,10 +304,10 @@ def main():
 
 def test():
     print("=== TEST ===")
-    t = chunk_to_tensor(["C:maj:maj7,min7"])
-    plot_chord(t)
-    print(t)
-    # dataset_one_hot = import_dataset()
+    # t = chunk_to_tensor(["C:maj:maj7,min7", "D:min:maj7"])
+    # str_t = tensor_to_chunk(t)
+    # print(str_t)
+    dataset_one_hot = import_dataset()
     # tensor_to_chunk(dataset_one_hot[0,:,:,:])
     # plot_chord(dataset_one_hot[0,5,:,:])
     print("=== END TEST ===")
