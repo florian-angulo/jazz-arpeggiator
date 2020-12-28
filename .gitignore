@@ -13,3 +13,6 @@ jazz_xlab/
 
 # Saved tensors
 *.pt
+
+# Compiled python
+*.pyc
