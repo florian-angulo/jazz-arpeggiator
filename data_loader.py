@@ -1,6 +1,12 @@
 """
 Get relevant chunks from the dataset
-(Not optimized by fast enough...)
+(Not optimized but fast enough...)
+
+Representation of the dataset : tensor of size N_CHUNKS x N_CHORDS x (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
+Representation of a chunk : tensor of size N_CHORDS x (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
+Representation of a chord : tensor of size (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
+    where there is  a 1 between 0 and N_PITCH * N_MAIN_QUALITIES (main chord)
+                    a 1 between N_PITCH * N_MAIN_QUALITIES and -1 (extra colors) 
 
 """
 
@@ -19,8 +25,9 @@ A3: Major, minor, seventh, diminished, augmented, suspended: N, maj, min, maj7, 
 
 PITCH_LIST = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"]
 MAIN_QUALITY_LIST = ["maj", "min", "dim"]
-EXTRA_QUALITY_LIST = ["N", "maj7", "min7"]
+EXTRA_QUALITY_LIST = ["N", "maj7", "min7"] # "None", "+ major 7th", "+ minor 7th"
 
+TOTAL_MAIN = len(PITCH_LIST) * len(MAIN_QUALITY_LIST)
 
 
 def sentence_to_chunks(sentence, N_CHORDS=16):
@@ -47,7 +54,7 @@ def sentence_to_chunks(sentence, N_CHORDS=16):
 
 def accept_chunk(chunk):
     """ Accept / modify a chunk depending on the set of qualities
-    Simplify complex colors (ex : D:maj(2,*3)/b7) to match an available chord (ex : D:maj)
+    Simplify complex colors (ex : D:maj(2,*3)/b7) to match an available chord (ex : D:maj:N)
 
     Parameters
     ----------
@@ -61,30 +68,41 @@ def accept_chunk(chunk):
         False, None : if the chunk is not accepted i.e. the quality of a chord is not in the set of considered qualities 
     
     """
+
     for i, chord in enumerate(chunk):
         pitch, quality = chord.split(":")
+
 
         if bool(re.search('aug|sus|hdim', quality)): # TODO : a prendre en compte un jour
             return False, None
         
-        if quality not in QUALITY_LIST:
-            # TODO : maj/7, min/7 : à considérer comme des maj7 / min7 ou des maj/min ?
-            if "maj(7" in chord :
-                chunk[i] = pitch + ":maj7"  
-            elif "min(7" in chord :
-                chunk[i] = pitch + ":min7"
-            elif "dim" in chord:
-                chunk[i] = pitch + ":dim"
-            elif "7" in chord:
-                chunk[i] = pitch + ":7"
-            elif "min" in chord:
-                chunk[i] = pitch + ":min"
-            elif bool(re.search('maj|9|11', quality)):
-                chunk[i] = pitch + ":maj"
+        if quality not in MAIN_QUALITY_LIST:
+            # i.e not "min", "maj" or "dim"
+            if quality == "7": # dominant 7th chord alone
+                chunk[i] = pitch + ":maj:min7"
+            elif bool(re.search('maj7|maj\(7', quality)): # maj7 alone OR maj(7 + other extra color)
+                chunk[i] = pitch + ":maj:maj7"
+            elif bool(re.search('min7|min\(7', quality)): # min7 alone OR min(7 + other extra color)
+                chunk[i] = pitch + ":min:min7"
+            elif bool(re.search('dim7', quality)):
+                chunk[i] = pitch + ":dim:min7"
+            elif bool(re.search('7\(|7/', quality)): # dominant 7th chord + other extra colors
+                chunk[i] = pitch + ":maj:min7"
+
+            elif quality == "9" or bool(re.search('9\(|9/', quality)): # dominant 7th chord + 9th (bypass 9) OR the main chord is a 9th chord
+                chunk[i] = pitch + ":maj:min7"
+
+
+            elif bool(re.search('min', quality)): # minor + other color
+                chunk[i] = pitch + ":min:N"
+            elif bool(re.search('maj|6\(', quality)): # Major + other color
+                chunk[i] = pitch + ":maj:N"
+            elif bool(re.search('dim', quality)): # dimished + other color
+                chunk[i] = pitch + ":dim:N"
             else:
-                # print(chord)
-                chunk[i] = pitch + ":maj"
-                # return False, None
+                return False, None
+        else:
+            chunk[i] += ":N"
 
     return True, chunk        
 
@@ -168,6 +186,17 @@ def plot_chord(tensor_chord):
 
     
     """
+
+
+    tensor_plot = torch.zeros((TOTAL_MAIN, len(EXTRA_QUALITY_LIST)))
+
+    index_main = torch.where(tensor_chord[:TOTAL_MAIN] == 1)[0]
+    index_extra_quality = torch.where(tensor_chord[TOTAL_MAIN:] == 1)[0]
+    
+    
+    tensor_plot[index_main,:] += torch.ones((len(EXTRA_QUALITY_LIST), 1)).T
+    tensor_plot[:,index_extra_quality] += torch.ones((1, TOTAL_MAIN)).T
+
     fig, ax = plt.subplots(1,1)
 
     tick_main = []
@@ -175,11 +204,12 @@ def plot_chord(tensor_chord):
         for q in MAIN_QUALITY_LIST:
             tick_main.append(p + q)
 
-    ax.imshow(tensor_chord.view(-1, len(EXTRA_QUALITY_LIST)))
-    ax.set_yticks(np.arange(len(MAIN_QUALITY_LIST) * len(PITCH_LIST)))
-    ax.set_xticks(np.arange(len(EXTRA_QUALITY_LIST)))
-    ax.set_xticklabels(EXTRA_QUALITY_LIST)
-    ax.set_yticklabels(tick_main)
+    
+    ax.imshow(tensor_plot.T)
+    ax.set_xticks(np.arange(len(MAIN_QUALITY_LIST) * len(PITCH_LIST)))
+    ax.set_yticks(np.arange(len(EXTRA_QUALITY_LIST)))
+    ax.set_yticklabels(EXTRA_QUALITY_LIST)
+    ax.set_xticklabels(tick_main)
     plt.xticks(rotation=45)
     plt.show()
 
@@ -196,19 +226,36 @@ def chunk_to_tensor(chunk):
     Returns
     -------
     torch.tensor
-        Tensor of size N_CHORDS x N_PITCH x N_MAIN_QUALITIES x N_EXTRA_QUALITIES
+        Tensor of size N_CHORDS x (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
 
     """
-    one_hot_tensor = torch.zeros(len(chunk), len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
+    # To get a tensor of size N_CHORDS x N_PITCH x N_MAIN_QUALITIES x N_EXTRA_QUALITIES
+
+    # one_hot_tensor = torch.zeros(len(chunk), len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
     
+    # for index_chord, chord in enumerate(chunk):
+    #     pitch, main_quality, extra_quality = chord.split(":")
+    #     index_pitch = PITCH_LIST.index(pitch)
+    #     index_main_quality = MAIN_QUALITY_LIST.index(main_quality)
+    #     all_extra_qualities = extra_quality.split(",")
+    #     for extra in all_extra_qualities:
+    #         index_extra_quality = EXTRA_QUALITY_LIST.index(extra)
+    #         one_hot_tensor[index_chord, index_pitch, index_main_quality, index_extra_quality] = 1
+
+    one_hot_tensor = torch.zeros(len(chunk), len(PITCH_LIST)*len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST))
+
     for index_chord, chord in enumerate(chunk):
         pitch, main_quality, extra_quality = chord.split(":")
         index_pitch = PITCH_LIST.index(pitch)
         index_main_quality = MAIN_QUALITY_LIST.index(main_quality)
+
+        one_hot_tensor[index_chord, index_pitch*len(MAIN_QUALITY_LIST) + index_main_quality] = 1 # Set 1 to the main chord in the first part of the vector
+        
         all_extra_qualities = extra_quality.split(",")
         for extra in all_extra_qualities:
             index_extra_quality = EXTRA_QUALITY_LIST.index(extra)
-            one_hot_tensor[index_chord, index_pitch, index_main_quality, index_extra_quality] = 1
+            one_hot_tensor[index_chord, TOTAL_MAIN + index_extra_quality] = 1 # Set 1 to the extra color in the second part of the vector
+
 
     return one_hot_tensor
 
@@ -220,7 +267,7 @@ def tensor_to_chunk(one_hot_tensor):
     Parameters
     ----------
     torch.tensor
-        Tensor of size N_CHORDS x N_PITCH x N_MAIN_QUALITIES x N_EXTRA_QUALITIES
+        Tensor of size N_CHORDS x (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
 
     Returns
     -------
@@ -230,17 +277,32 @@ def tensor_to_chunk(one_hot_tensor):
     """
     chords = []
 
-    for chord_i in range(one_hot_tensor.shape[0]): 
-        index_pitch, index_main_quality, index_extra_quality = torch.where(one_hot_tensor[chord_i,:,:,:] == 1)
+    # From a tensor of size N_CHORDS x N_PITCH x N_MAIN_QUALITIES x N_EXTRA_QUALITIES
+    # for chord_i in range(one_hot_tensor.shape[0]): 
+    #     index_pitch, index_main_quality, index_extra_quality = torch.where(one_hot_tensor[chord_i,:,:,:] == 1)
 
-        chord_str = PITCH_LIST[index_pitch[0]] + ":" + MAIN_QUALITY_LIST[index_main_quality[0]] + ":"
+    #     chord_str = PITCH_LIST[index_pitch[0]] + ":" + MAIN_QUALITY_LIST[index_main_quality[0]] + ":"
 
-        print(index_extra_quality)
-
-        for extra_i in index_extra_quality:
-            chord_str += EXTRA_QUALITY_LIST[extra_i] + ":"
+    #     for extra_i in index_extra_quality:
+    #         chord_str += EXTRA_QUALITY_LIST[extra_i] + ","
         
-        chords.append(chord_str)
+    #     chords.append(chord_str[:-1])
+
+
+    for chord_i in range(one_hot_tensor.shape[0]):
+        index_main = torch.where(one_hot_tensor[chord_i,:TOTAL_MAIN] == 1)[0]
+
+        
+        index_pitch = index_main // len(MAIN_QUALITY_LIST)
+        index_main_quality = index_main % len(MAIN_QUALITY_LIST)
+
+        chord_str = PITCH_LIST[index_pitch] + ":" + MAIN_QUALITY_LIST[index_main_quality] + ":"
+
+        index_extra_quality = torch.where(one_hot_tensor[chord_i,TOTAL_MAIN:] == 1)[0]
+        for extra_i in index_extra_quality:
+            chord_str += EXTRA_QUALITY_LIST[extra_i] + ","
+
+        chords.append(chord_str[:-1])
 
     return chords
 
@@ -252,16 +314,17 @@ def set_one_hot_dataset():
     Returns
     -------
     torch.tensor
-        Tensor of size N_CHUNKS x N_CHORDS x N_PITCH x N_MAIN_QUALITIES x N_EXTRA_QUALITIES
+        Tensor of size N_CHUNKS x N_CHORDS x (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
         It contains chords from the realbook dataset as one-hot vectors
     """
     all_chunks = get_chunks()
-    dataset_one_hot = torch.zeros(len(all_chunks), 16, len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
+    # dataset_one_hot = torch.zeros(len(all_chunks), 16, len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
+    dataset_one_hot = torch.zeros(len(all_chunks), 16, len(PITCH_LIST) * len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST))
 
     print("Converting into tensor")
     pbar = tqdm.tqdm(total = len(all_chunks))
     for i, chunk in enumerate(all_chunks):
-        dataset_one_hot[i,:,:,:,:] = chunk_to_tensor(chunk)
+        dataset_one_hot[i,:,:] = chunk_to_tensor(chunk)
         pbar.update(1)
     
     pbar.close()
@@ -277,9 +340,8 @@ def import_dataset():
     Returns
     -------
     torch.tensor
-        Tensor of size N_CHUNKS x N_CHORDS x N_PITCH x N_QUALITIES
+        Tensor of size N_CHUNKS x N_CHORDS x (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
         It contains chords from the realbook dataset as one-hot vectors
-    
     """
     try:
         dataset_one_hot = torch.load("dataset_chunks.pt")
@@ -304,12 +366,19 @@ def main():
 
 def test():
     print("=== TEST ===")
-    # t = chunk_to_tensor(["C:maj:maj7,min7", "D:min:maj7"])
+    # chunk_test = ['C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'G:maj:maj7', 'G:maj:min7', 'G:maj:min7', 'G:maj:min7', 'G:maj:min7', 'G:maj:min7', 'G#:dim:min7', 'G:maj:min7,maj7']
+    # t = chunk_to_tensor(chunk_test)
+    # print(t)
     # str_t = tensor_to_chunk(t)
+    # plot_chord(t[8,:])
+    # print(chunk_test)
     # print(str_t)
+
     dataset_one_hot = import_dataset()
-    # tensor_to_chunk(dataset_one_hot[0,:,:,:])
-    # plot_chord(dataset_one_hot[0,5,:,:])
+    str_c = tensor_to_chunk(dataset_one_hot[0,:,:])
+    print(str_c)
+    plot_chord(dataset_one_hot[0,8,:])
+    
     print("=== END TEST ===")
 
 
