@@ -13,12 +13,14 @@ import tqdm
 
 """
 A1: Major, minor, diminished: N (which means no chord), maj, min, dim;
-A2: Major, minor, seventh, diminished: N, maj, min, maj7, min7, 7, dim, dim7;
+A2: Major, minor, seventh, diminished: maj, min, dim, N, maj7, min7, 7, dim7;
 A3: Major, minor, seventh, diminished, augmented, suspended: N, maj, min, maj7, min7, 7, dim,dim7, aug, sus;
 """
 
 PITCH_LIST = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"]
-QUALITY_LIST = ["maj", "min", "dim", "maj7", "min7", "7", "dim7"]
+MAIN_QUALITY_LIST = ["maj", "min", "dim"]
+EXTRA_QUALITY_LIST = ["N", "maj7", "min7"]
+
 
 
 def sentence_to_chunks(sentence, N_CHORDS=16):
@@ -161,18 +163,23 @@ def plot_chord(tensor_chord):
     Parameters
     ----------
     torch.tensor
-        Tensor of size len(QUALITY_LIST) x len(PITCH_LIST)
+        Tensor of size len(PITCH_LIST) x len(MAIN_QUALITY_LIST) x len(EXTRA_QUALITY_LIST)
         It must be full of zeros, except at one index
 
     
     """
     fig, ax = plt.subplots(1,1)
 
-    ax.imshow(tensor_chord)
-    ax.set_xticks(np.arange(len(QUALITY_LIST)))
-    ax.set_yticks(np.arange(len(PITCH_LIST)))
-    ax.set_xticklabels(QUALITY_LIST)
-    ax.set_yticklabels(PITCH_LIST)
+    tick_main = []
+    for p in PITCH_LIST:
+        for q in MAIN_QUALITY_LIST:
+            tick_main.append(p + q)
+
+    ax.imshow(tensor_chord.view(-1, len(EXTRA_QUALITY_LIST)))
+    ax.set_yticks(np.arange(len(MAIN_QUALITY_LIST) * len(PITCH_LIST)))
+    ax.set_xticks(np.arange(len(EXTRA_QUALITY_LIST)))
+    ax.set_xticklabels(EXTRA_QUALITY_LIST)
+    ax.set_yticklabels(tick_main)
     plt.xticks(rotation=45)
     plt.show()
 
@@ -193,16 +200,16 @@ def chunk_to_tensor(chunk):
         Each sub-tensor of size N_PITCH x N_QUALITIES is a one-hot tensor
 
     """
-    one_hot_tensor = torch.zeros(len(chunk), len(PITCH_LIST), len(QUALITY_LIST))
+    one_hot_tensor = torch.zeros(len(chunk), len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
     
     for index_chord, chord in enumerate(chunk):
-        pitch, quality = chord.split(":")
+        pitch, main_quality, extra_quality = chord.split(":")
         index_pitch = PITCH_LIST.index(pitch)
-        index_quality = QUALITY_LIST.index(quality)
-
-        one_hot_tensor[index_chord, index_pitch, index_quality] = 1
-
-    # TODO : Soit on garde la size en N_CHORDS x N_PITCH x N_QUALITY ou bien il faut la reshape en N_CHORDS x (N_PITCH*N_QUALITY)
+        index_main_quality = MAIN_QUALITY_LIST.index(main_quality)
+        all_extra_qualities = extra_quality.split(",")
+        for extra in all_extra_qualities:
+            index_extra_quality = EXTRA_QUALITY_LIST.index(extra)
+            one_hot_tensor[index_chord, index_pitch, index_main_quality, index_extra_quality] = 1
 
     return one_hot_tensor
 
@@ -241,16 +248,16 @@ def set_one_hot_dataset():
     Returns
     -------
     torch.tensor
-        Tensor of size N_CHUNKS x N_CHORDS x N_PITCH x N_QUALITIES
+        Tensor of size N_CHUNKS x N_CHORDS x N_PITCH x N_MAIN_QUALITIES x N_EXTRA_QUALITIES
         It contains chords from the realbook dataset as one-hot vectors
     """
     all_chunks = get_chunks()
-    dataset_one_hot = torch.zeros(len(all_chunks), 16, len(PITCH_LIST), len(QUALITY_LIST))
+    dataset_one_hot = torch.zeros(len(all_chunks), 16, len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
 
     print("Converting into tensor")
     pbar = tqdm.tqdm(total = len(all_chunks))
     for i, chunk in enumerate(all_chunks):
-        dataset_one_hot[i,:,:,:] = chunk_to_tensor(chunk)
+        dataset_one_hot[i,:,:,:,:] = chunk_to_tensor(chunk)
         pbar.update(1)
     
     pbar.close()
@@ -293,9 +300,12 @@ def main():
 
 def test():
     print("=== TEST ===")
-    dataset_one_hot = import_dataset()
-    tensor_to_chunk(dataset_one_hot[0,:,:,:])
-    plot_chord(dataset_one_hot[0,5,:,:])
+    t = chunk_to_tensor(["C:maj:maj7,min7"])
+    plot_chord(t)
+    print(t)
+    # dataset_one_hot = import_dataset()
+    # tensor_to_chunk(dataset_one_hot[0,:,:,:])
+    # plot_chord(dataset_one_hot[0,5,:,:])
     print("=== END TEST ===")
 
 
