@@ -169,10 +169,9 @@ def sentence_to_tensor(sentence):
     #         index_extra_quality = EXTRA_QUALITY_LIST.index(extra)
     #         one_hot_tensor[index_chord, index_pitch, index_main_quality, index_extra_quality] = 1
 
-    one_hot_tensor = torch.zeros(len(sentence), len(PITCH_LIST)*len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 2)
+    one_hot_tensor = torch.zeros(len(sentence), len(PITCH_LIST)*len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 3)
     
-    
-    one_hot_tensor[0, TOTAL_MAIN + len(EXTRA_QUALITY_LIST)] = 1
+    one_hot_tensor[0, -3] = 1
     for index_chord, chord in enumerate(sentence[1:-1]):
             
         pitch, main_quality, extra_quality = chord.split(":")
@@ -186,7 +185,7 @@ def sentence_to_tensor(sentence):
             index_extra_quality = EXTRA_QUALITY_LIST.index(extra)
             one_hot_tensor[index_chord + 1, TOTAL_MAIN + index_extra_quality] = 1 # Set 1 to the extra color in the second part of the vector
 
-    one_hot_tensor[-1, TOTAL_MAIN + len(EXTRA_QUALITY_LIST) + 1] = 1
+    one_hot_tensor[-1, -2] = 1
 
     return one_hot_tensor
 
@@ -222,14 +221,15 @@ def tensor_to_sentence(one_hot_tensor,length_tensor):
 
     for chord_i in range(length_tensor):
         
-        one_hot_tensor_extend = torch.cat((one_hot_tensor[chord_i,:TOTAL_MAIN],one_hot_tensor[chord_i,-2:]),0)
+        one_hot_tensor_extend = torch.cat((one_hot_tensor[chord_i,:TOTAL_MAIN],one_hot_tensor[chord_i,-3:]),0)
         index_main = torch.where(one_hot_tensor_extend == torch.max(one_hot_tensor_extend))[0]
-        print(index_main)
-        print()
-        if index_main == TOTAL_MAIN:
+
+        if index_main == TOTAL_MAIN :
             chords.append("START")
         elif index_main == TOTAL_MAIN + 1:
             chords.append("END")
+        elif index_main == TOTAL_MAIN + 2:
+            chords.append("N")
         else:
             index_pitch = index_main // len(MAIN_QUALITY_LIST)
             index_main_quality = index_main % len(MAIN_QUALITY_LIST)
@@ -259,8 +259,8 @@ def set_one_hot_dataset():
     all_sentences, len_sentences = get_sentences()
     max_sequence_length = max(len_sentences)
     # dataset_one_hot = torch.zeros(len(all_sentences), 16, len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
-    dataset_one_hot = torch.zeros(len(all_sentences), max_sequence_length, len(PITCH_LIST) * len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 2)
-
+    dataset_one_hot = torch.zeros(len(all_sentences), max_sequence_length, len(PITCH_LIST) * len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 3)
+    dataset_one_hot[:,:,-1] = 1
     print("Converting into tensor")
     pbar = tqdm.tqdm(total = len(all_sentences))
     for i, sentence in enumerate(all_sentences):
@@ -271,7 +271,7 @@ def set_one_hot_dataset():
     torch.save(dataset_one_hot, 'dataset_sentences.pt')
     np.save("len_sentences.npy", np.array(len_sentences))
 
-    return dataset_one_hot
+    return dataset_one_hot, len_sentences
 
 
 
@@ -291,8 +291,8 @@ def import_dataset():
         print("Dataset not found.")
         print("Computing dataset...")
         print("."*50)
-        dataset_one_hot = set_one_hot_dataset()
-
+        dataset_one_hot, len_sentences = set_one_hot_dataset()
+        
     print("Dataset loaded !")
     
     return dataset_one_hot, len_sentences
@@ -317,7 +317,7 @@ def test():
     # print(str_t)
 
     dataset_one_hot, len_sentences = import_dataset()
-    str_c = tensor_to_sentence(dataset_one_hot[40,:,:],len_sentences[40])
+    str_c = tensor_to_sentence(dataset_one_hot[40,:,:],len_sentences[40]+4)
     print(str_c)
     
     print("=== END TEST ===")
