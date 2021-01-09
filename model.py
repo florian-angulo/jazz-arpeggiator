@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
 
 
-
 class RVAE(nn.Module):
     N_PITCH = 12
     N_MAIN_QUALITY = 3 # A changer aussi dans data_loader
@@ -12,16 +11,7 @@ class RVAE(nn.Module):
     N_LATENT = 16
     N_INPUT = N_PITCH * N_MAIN_QUALITY + N_EXTRA_QUALITY + 3
     rnn_type= 'gru'
-    # word_dropout= 0.75
-    start_tensor = torch.zeros((N_INPUT,))
-    sos_idx= -2
-    start_tensor[sos_idx] = 1
-    
-    end_tensor = torch.zeros((N_INPUT,))
-    eos_idx= -1
-    end_tensor[eos_idx] = 1
-    # pad_idx=
-    # unk_idx=
+    # word_dropout_rate = 0.75  # A IMPLEMENTER
 
     N_LAYERS=1
     bidirectional=False
@@ -29,23 +19,8 @@ class RVAE(nn.Module):
         
         
         super(RVAE, self).__init__()
-        # self.tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
-
+        self.tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
         self.max_sequence_length = max_sequence_length
-        # self.sos_idx = sos_idx
-        # self.eos_idx = eos_idx
-        # self.pad_idx = pad_idx
-        # self.unk_idx = unk_idx
-
-        # self.latent_size = latent_size
-
-        # self.rnn_type = rnn_type
-        # self.bidirectional = bidirectional
-        # self.num_layers = num_layers
-        # self.hidden_size = hidden_size
-
-        # self.word_dropout_rate = word_dropout
-        # self.embedding_dropout = nn.Dropout(p=embedding_dropout)
 
         if self.rnn_type == 'rnn':
             rnn = nn.RNN
@@ -66,7 +41,7 @@ class RVAE(nn.Module):
         self.hidden2logv = nn.Linear(self.N_HIDDEN * self.hidden_factor, self.N_LATENT)
         self.latent2hidden = nn.Linear(self.N_LATENT, self.N_HIDDEN * self.hidden_factor)
         self.outputs2pred = nn.Linear(self.N_HIDDEN * (2 if self.bidirectional else 1), self.N_INPUT)
-        
+
 
     def forward(self, input_sequence, length):
 
@@ -118,9 +93,7 @@ class RVAE(nn.Module):
         padded_outputs = padded_outputs[reversed_idx]
         b,s,_ = padded_outputs.size()
 
-        # project outputs to vocab
-        # logp = nn.functional.log_softmax(self.outputs2vocab(padded_outputs.view(-1, padded_outputs.size(2))), dim=-1)
-        # logp = logp.view(b, s, self.embedding.num_embeddings)
+        # project outputs to one_hot representation
         recons = torch.sigmoid(self.outputs2pred(padded_outputs))
         
         return recons, mean, logv, z
@@ -143,65 +116,58 @@ class RVAE(nn.Module):
         hidden = hidden.unsqueeze(0)
 
         # required for dynamic stopping of sentence generation
-        sequence_idx = torch.arange(0, batch_size, out=self.tensor()).long()  # all idx of batch
+        sequence_idx = torch.arange(0, batch_size, out=self.tensor()).float()  # all idx of batch
         # all idx of batch which are still generating
-        sequence_running = torch.arange(0, batch_size, out=self.tensor()).long()
+        sequence_running = torch.arange(0, batch_size, out=self.tensor()).float()
         sequence_mask = torch.ones(batch_size, out=self.tensor()).bool()
         # idx of still generating sequences with respect to current loop
-        running_seqs = torch.arange(0, batch_size, out=self.tensor()).long()
-
-        generations = self.tensor(batch_size, self.max_sequence_length).fill_(torch.zeros((self.N_INPUT))).long()
-
+        running_seqs = torch.arange(0, batch_size, out=self.tensor()).float()
+        
+        generations = self.tensor(batch_size, self.max_sequence_length,self.N_INPUT).fill_(0).float()
+        
+        input_sequence = self.tensor(batch_size, self.max_sequence_length, self.N_INPUT).fill_(0).float().cuda()
+        input_sequence[:, 0, -3] = 1 # Initialize START on every beginnings of the sentences
+        input_sequence[:, 1:, -1] = 1 # Initialize N on the rest of the sentences
+        
         t = 0
         while t < self.max_sequence_length and len(running_seqs) > 0:
 
-            if t == 0:
-                if torch.cuda.is_available():
-                    input_sequence = torch.Tensor(batch_size).fill_(self.start_tensor).long().cuda()
 
-            input_sequence = input_sequence.unsqueeze(1)
 
+            output, hidden = self.decoder_rnn(input_sequence[:, :t+1], hidden)
+
+            # create new input_sequence from output
+
+            proba_output = torch.sigmoid(self.outputs2pred(output))
+            for i in range(n):
+                input_sequence[i,t] = sentence_to_tensor(tensor_to_sentence(proba_output[i], t+1))[t].float()
             
-
-            output, hidden = self.decoder_rnn(input_sequence, hidden)
-
-
             # save next input
             generations = self._save_sample(generations, input_sequence, sequence_running, t)
-
+            
             # update gloabl running sequence
-            sequence_mask[sequence_running] = (input_sequence != self.end_tensor)
+            sequence_mask[sequence_running.long()] = (input_sequence[:, t, -2] != 1)
             sequence_running = sequence_idx.masked_select(sequence_mask)
-
             # update local running sequences
-            running_mask = (input_sequence != self.end_tensor).data
+            running_mask = (input_sequence[:, t, -2] != 1)
             running_seqs = running_seqs.masked_select(running_mask)
-
             # prune input and hidden state according to local update
             if len(running_seqs) > 0:
-                input_sequence = input_sequence[running_seqs]
-                hidden = hidden[:, running_seqs]
-
-                running_seqs = torch.arange(0, len(running_seqs), out=self.tensor()).long()
+                input_sequence = input_sequence[running_seqs.long()]
+                hidden = hidden[:, running_seqs.long()]
+                running_seqs = torch.arange(0, len(running_seqs), out=self.tensor()).float()
+                
 
             t += 1
 
         return generations, z
 
-    def _sample(self, dist, mode='greedy'):
-
-        if mode == 'greedy':
-            _, sample = torch.topk(dist, 1, dim=-1)
-        sample = sample.reshape(-1)
-
-        return sample
-
     def _save_sample(self, save_to, sample, running_seqs, t):
         # select only still running
-        running_latest = save_to[running_seqs]
+        running_latest = save_to[running_seqs.long()]
         # update token at position t
-        running_latest[:,t] = sample.data
+        running_latest[:,:t+1] = sample[:,:t+1].data
         # save back
-        save_to[running_seqs] = running_latest
+        save_to[running_seqs.long()] = running_latest
 
         return save_to

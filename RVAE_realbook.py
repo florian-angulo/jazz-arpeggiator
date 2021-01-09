@@ -36,8 +36,8 @@ def main():
        
         # cut-off unnecessary padding from target, and flatten
 
-        target = torch.reshape(target[:, :,:-1],(batch_size,-1))
-        pred = torch.reshape(pred[:,:,:-1],(batch_size,-1))
+        target = torch.reshape(target[:, :-1,:-1],(batch_size,-1))
+        pred = torch.reshape(pred[:,1:,:-1],(batch_size,-1))
        
         # Negative Log Likelihood
         CE_loss = CE(pred,target)
