@@ -1,12 +1,14 @@
 """
-Get relevant chunks from the dataset
+Get every chord sequences from the dataset
 (Not optimized but fast enough...)
 
-Representation of the dataset : tensor of size N_CHUNKS x N_CHORDS x (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
-Representation of a chunk : tensor of size N_CHORDS x (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
-Representation of a chord : tensor of size (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
-    where there is  a 1 between 0 and N_PITCH * N_MAIN_QUALITIES (main chord)
-                    a 1 between N_PITCH * N_MAIN_QUALITIES and -1 (extra colors) 
+Representation of a token : tensor of size (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES + 3)
+    where there is  a 1 between indices 0 and N_PITCH * N_MAIN_QUALITIES (main chord) if the token is a chord
+                    a 1 between indices N_PITCH * N_MAIN_QUALITIES and -4 (extra colors) if the token is a chord
+                    a 1 at index -3 if token = START
+                    a 1 at index -2 if token = END
+                    a 1 at inde -1 if token = N, representing the absence of chord (used for padding or unknown chord)
+                    
 
 """
 
@@ -171,9 +173,19 @@ def sentence_to_tensor(sentence):
 
     one_hot_tensor = torch.zeros(len(sentence), len(PITCH_LIST)*len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 3)
     
-    one_hot_tensor[0, -3] = 1
-    for index_chord, chord in enumerate(sentence[1:-1]):
-            
+    #one_hot_tensor[0, -3] = 1
+    for index_chord, chord in enumerate(sentence):
+        
+        if chord == 'START':
+            one_hot_tensor[index_chord, -3] = 1
+            continue
+        elif chord == 'END':
+            one_hot_tensor[index_chord, -2] = 1
+            continue
+        elif chord == 'N':
+            one_hot_tensor[index_chord, -1] = 1 # Si ça arrive t'es un gros naze
+            print('et alors ? ton RVAE marche pas Johnny ?')
+            continue
         pitch, main_quality, extra_quality = chord.split(":")
         index_pitch = PITCH_LIST.index(pitch)
         index_main_quality = MAIN_QUALITY_LIST.index(main_quality)
@@ -184,8 +196,7 @@ def sentence_to_tensor(sentence):
         for extra in all_extra_qualities:
             index_extra_quality = EXTRA_QUALITY_LIST.index(extra)
             one_hot_tensor[index_chord + 1, TOTAL_MAIN + index_extra_quality] = 1 # Set 1 to the extra color in the second part of the vector
-
-    one_hot_tensor[-1, -2] = 1
+    
 
     return one_hot_tensor
 
@@ -220,10 +231,8 @@ def tensor_to_sentence(one_hot_tensor,length_tensor):
 
 
     for chord_i in range(length_tensor):
-        
         one_hot_tensor_extend = torch.cat((one_hot_tensor[chord_i,:TOTAL_MAIN],one_hot_tensor[chord_i,-3:]),0)
         index_main = torch.where(one_hot_tensor_extend == torch.max(one_hot_tensor_extend))[0]
-
         if index_main == TOTAL_MAIN :
             chords.append("START")
         elif index_main == TOTAL_MAIN + 1:
