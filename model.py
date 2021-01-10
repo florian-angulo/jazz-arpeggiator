@@ -11,17 +11,23 @@ class RVAE(nn.Module):
     N_LATENT = 16
     N_INPUT = N_PITCH * N_MAIN_QUALITY + N_EXTRA_QUALITY + 3
     rnn_type= 'gru'
-    # word_dropout_rate = 0.75  # A IMPLEMENTER
-
+    word_dropout_rate = 0.75  
+    
     N_LAYERS=1
     bidirectional=False
-    def __init__(self, max_sequence_length):
+    
+    no_chords = torch.zeros(N_INPUT).cuda()
+    no_chords[-1] = 1
+    def __init__(self, max_sequence_length,rnn_type="gru",bidirectional=False):
         
         
         super(RVAE, self).__init__()
+        
         self.tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
         self.max_sequence_length = max_sequence_length
 
+        self.rnn_type = rnn_type
+        self.bidirectional = bidirectional
         if self.rnn_type == 'rnn':
             rnn = nn.RNN
         elif self.rnn_type == 'gru':
@@ -80,8 +86,20 @@ class RVAE(nn.Module):
             hidden = hidden.unsqueeze(0)
 
         # decoder input
-       
-        packed_input = rnn_utils.pack_padded_sequence(input_sequence, sorted_lengths.data.tolist(), batch_first=True)
+        if self.word_dropout_rate > 0:
+            # randomly replace decoder input with <unk>
+            d1, d2, _ = input_sequence.size()
+            prob = torch.rand((d1,d2))
+            prob[:,0] = 1 # Not to change start token
+            if torch.cuda.is_available():
+                prob=prob.cuda()
+           
+            decoder_input_sequence = input_sequence.clone()
+            
+            decoder_input_sequence[prob < self.word_dropout_rate] = self.no_chords
+
+        
+        packed_input = rnn_utils.pack_padded_sequence(decoder_input_sequence, sorted_lengths.data.tolist(), batch_first=True)
 
         # decoder forward pass
         outputs, _ = self.decoder_rnn(packed_input, hidden)

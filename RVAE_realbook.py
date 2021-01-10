@@ -10,8 +10,8 @@ from data_loader_RVAE import import_dataset
 
 def main():
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
-    print_every = 100
-    batch_size = 16
+    print_every = 64
+    batch_size = 64
     one_hots, len_sentences = import_dataset()
     
     len_sentences = torch.from_numpy(len_sentences)

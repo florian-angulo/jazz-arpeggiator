@@ -376,13 +376,23 @@ def test():
     # print(str_t)
 
     dataset_one_hot = import_dataset()
+    print(dataset_one_hot.size())
     str_c = tensor_to_chunk(dataset_one_hot[0,:,:])
     print(str_c)
     plot_chord(dataset_one_hot[0,8,:])
+    recon = dataset_one_hot[0,:,:].numpy()
     
+    ids = np.transpose(np.append(np.array(range(1,37)),[0,36,72]))
+    # print(recon[0,0], ids)
+    recon_id = np.zeros((16))
+    for j in range(len(recon)):
+            # print(recon[i,j].size(), ids.size())
+            recon_id[j] = np.dot(recon[j],ids)
+    print(recon_id)
     print("=== END TEST ===")
 
 
 
 if __name__ == '__main__':
     test()
+
