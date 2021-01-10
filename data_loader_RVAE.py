@@ -190,12 +190,12 @@ def sentence_to_tensor(sentence):
         index_pitch = PITCH_LIST.index(pitch)
         index_main_quality = MAIN_QUALITY_LIST.index(main_quality)
 
-        one_hot_tensor[index_chord + 1, index_pitch*len(MAIN_QUALITY_LIST) + index_main_quality] = 1 # Set 1 to the main chord in the first part of the vector
+        one_hot_tensor[index_chord, index_pitch*len(MAIN_QUALITY_LIST) + index_main_quality] = 1 # Set 1 to the main chord in the first part of the vector
         
         all_extra_qualities = extra_quality.split(",")
         for extra in all_extra_qualities:
             index_extra_quality = EXTRA_QUALITY_LIST.index(extra)
-            one_hot_tensor[index_chord + 1, TOTAL_MAIN + index_extra_quality] = 1 # Set 1 to the extra color in the second part of the vector
+            one_hot_tensor[index_chord , TOTAL_MAIN + index_extra_quality] = 1 # Set 1 to the extra color in the second part of the vector
     
 
     return one_hot_tensor

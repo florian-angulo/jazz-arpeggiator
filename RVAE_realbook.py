@@ -10,8 +10,8 @@ from data_loader_RVAE import import_dataset
 
 def main():
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
-    print_every = 64
-    batch_size = 64
+    print_every = 16
+    batch_size = 16
     one_hots, len_sentences = import_dataset()
     
     len_sentences = torch.from_numpy(len_sentences)
@@ -52,15 +52,16 @@ def main():
 
     tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     step = 0
-    epochs =10
-    for epoch in range(epochs):
-        dataset = TensorDataset(one_hots, len_sentences)
-        data_loader = DataLoader(
-            dataset=dataset,
-            batch_size=batch_size,
-            num_workers=cpu_count(),
-            pin_memory=torch.cuda.is_available()
+    epochs =3
+    dataset = TensorDataset(one_hots, len_sentences)
+    data_loader = DataLoader(
+        dataset=dataset,
+        batch_size=batch_size,
+        num_workers=cpu_count(),
+        pin_memory=torch.cuda.is_available()
         )
+    for epoch in range(epochs):
+
 
         tracker = defaultdict(tensor)
 
