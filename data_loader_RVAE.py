@@ -171,19 +171,18 @@ def sentence_to_tensor(sentence):
     #         index_extra_quality = EXTRA_QUALITY_LIST.index(extra)
     #         one_hot_tensor[index_chord, index_pitch, index_main_quality, index_extra_quality] = 1
 
-    one_hot_tensor = torch.zeros(len(sentence), len(PITCH_LIST)*len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 3)
+    one_hot_tensor = torch.zeros(len(sentence), len(PITCH_LIST)*len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 2)
     
-    #one_hot_tensor[0, -3] = 1
     for index_chord, chord in enumerate(sentence):
         
         if chord == 'START':
-            one_hot_tensor[index_chord, -3] = 1
-            continue
-        elif chord == 'END':
             one_hot_tensor[index_chord, -2] = 1
             continue
+        elif chord == 'END':
+            one_hot_tensor[index_chord, -1] = 1
+            continue
         elif chord == 'N':
-            one_hot_tensor[index_chord, -1] = 1 # Si ça arrive t'es un gros naze
+            # Si รงa arrive t'es un gros naze
             print('et alors ? ton RVAE marche pas Johnny ?')
             continue
         pitch, main_quality, extra_quality = chord.split(":")
@@ -231,21 +230,18 @@ def tensor_to_sentence(one_hot_tensor,length_tensor):
 
 
     for chord_i in range(length_tensor):
-        one_hot_tensor_extend = torch.cat((one_hot_tensor[chord_i,:TOTAL_MAIN],one_hot_tensor[chord_i,-3:]),0)
+        one_hot_tensor_extend = torch.cat((one_hot_tensor[chord_i,:TOTAL_MAIN],one_hot_tensor[chord_i,-2:]),0)
         index_main = torch.where(one_hot_tensor_extend == torch.max(one_hot_tensor_extend))[0]
         if index_main == TOTAL_MAIN :
             chords.append("START")
         elif index_main == TOTAL_MAIN + 1:
             chords.append("END")
-        elif index_main == TOTAL_MAIN + 2:
-            chords.append("N")
         else:
             index_pitch = index_main // len(MAIN_QUALITY_LIST)
             index_main_quality = index_main % len(MAIN_QUALITY_LIST)
 
             chord_str = PITCH_LIST[index_pitch] + ":" + MAIN_QUALITY_LIST[index_main_quality] + ":"
-
-            index_extra_quality = torch.where(one_hot_tensor[chord_i,TOTAL_MAIN:] == torch.max(one_hot_tensor[chord_i,TOTAL_MAIN:]))[0]
+            index_extra_quality = torch.where(one_hot_tensor[chord_i,TOTAL_MAIN:] == torch.max(one_hot_tensor[chord_i,TOTAL_MAIN:TOTAL_MAIN+3]))[0]
             for extra_i in index_extra_quality:
                 chord_str += EXTRA_QUALITY_LIST[extra_i] + ","
 
@@ -268,7 +264,7 @@ def set_one_hot_dataset():
     all_sentences, len_sentences = get_sentences()
     max_sequence_length = max(len_sentences)
     # dataset_one_hot = torch.zeros(len(all_sentences), 16, len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
-    dataset_one_hot = torch.zeros(len(all_sentences), max_sequence_length, len(PITCH_LIST) * len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 3)
+    dataset_one_hot = torch.zeros(len(all_sentences), max_sequence_length, len(PITCH_LIST) * len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 2)
     dataset_one_hot[:,:,-1] = 1
     print("Converting into tensor")
     pbar = tqdm.tqdm(total = len(all_sentences))

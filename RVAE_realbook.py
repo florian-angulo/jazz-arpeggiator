@@ -10,11 +10,11 @@ from data_loader_RVAE import import_dataset
 
 def main():
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
-    print_every = 16
-    batch_size = 16
+    print_every = 30
+    batch_size = 10
     one_hots, len_sentences = import_dataset()
     
-    len_sentences = torch.from_numpy(len_sentences)
+    len_sentences = torch.from_numpy(np.array(len_sentences))
     save_model_path = "./"
     model = RVAE(max(len_sentences))
 
@@ -36,8 +36,8 @@ def main():
        
         # cut-off unnecessary padding from target, and flatten
 
-        target = torch.reshape(target[:, :-1,:-1],(batch_size,-1))
-        pred = torch.reshape(pred[:,1:,:-1],(batch_size,-1))
+        target = torch.reshape(target[:, 1:,:],(batch_size,-1))
+        pred = torch.reshape(pred[:,:-1,:],(batch_size,-1))
        
         # Negative Log Likelihood
         CE_loss = CE(pred,target)
@@ -52,7 +52,7 @@ def main():
 
     tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     step = 0
-    epochs =3
+    epochs = 1000
     dataset = TensorDataset(one_hots, len_sentences)
     data_loader = DataLoader(
         dataset=dataset,
@@ -84,7 +84,7 @@ def main():
             NLL_loss, KL_loss, KL_weight = loss_fn(recons_data, seq_data[:,:max(length)],
                 length, mean, logv, 'logistic', step, 2.5e-3, 2500)
 
-            loss = (NLL_loss + KL_weight * KL_loss) / batch_size
+            loss = (NLL_loss + KL_weight * KL_loss * 12) / batch_size
            
             # backward + optimization
            

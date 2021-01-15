@@ -1,25 +1,24 @@
 import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
-
+from data_loader_RVAE import sentence_to_tensor, tensor_to_sentence
 
 class RVAE(nn.Module):
     N_PITCH = 12
     N_MAIN_QUALITY = 3 # A changer aussi dans data_loader
     N_EXTRA_QUALITY = 3
-    N_HIDDEN = 64
-    N_LATENT = 4
-    N_INPUT = N_PITCH * N_MAIN_QUALITY + N_EXTRA_QUALITY + 3
+    N_RATIO = 16
+    N_LATENT = 32
+    N_HIDDEN = N_LATENT*N_RATIO
+    N_INPUT = N_PITCH * N_MAIN_QUALITY + N_EXTRA_QUALITY + 2
     rnn_type= 'gru'
-    word_dropout_rate = 0.75  
+    word_dropout_rate = 0.75
     
     N_LAYERS=1
     bidirectional=False
-    
     no_chords = torch.zeros(N_INPUT)
-    if cuda.is_available():
+    if torch.cuda.is_available():
         no_chords = no_chords.cuda()
-    no_chords[-1] = 1
     def __init__(self, max_sequence_length,rnn_type="gru",bidirectional=False):
         
         
@@ -47,9 +46,9 @@ class RVAE(nn.Module):
 
         self.hidden2mean = nn.Linear(self.N_HIDDEN * self.hidden_factor, self.N_LATENT)
         self.hidden2logv = nn.Linear(self.N_HIDDEN * self.hidden_factor, self.N_LATENT)
-        self.latent2hidden = nn.Linear(self.N_LATENT, self.N_HIDDEN * self.hidden_factor)
+        #self.latent2hidden = nn.Linear(self.N_LATENT, self.N_HIDDEN * self.hidden_factor)
         self.outputs2pred = nn.Linear(self.N_HIDDEN * (2 if self.bidirectional else 1), self.N_INPUT)
-
+    
 
     def forward(self, input_sequence, length):
 
@@ -79,7 +78,7 @@ class RVAE(nn.Module):
         z = z * std + mean
 
         # DECODER
-        hidden = self.latent2hidden(z)
+        hidden = z.repeat(1, self.N_RATIO * self.hidden_factor)
 
         if self.bidirectional or self.N_LAYERS > 1:
             # unflatten hidden state
@@ -114,7 +113,13 @@ class RVAE(nn.Module):
         b,s,_ = padded_outputs.size()
 
         # project outputs to one_hot representation
-        recons = torch.sigmoid(self.outputs2pred(padded_outputs))
+        pred = self.outputs2pred(padded_outputs)
+        pred_main = torch.cat((pred[:,:,:self.N_PITCH * self.N_MAIN_QUALITY],pred[:,:,-2:]),2)
+        pred_extra = pred[:,:,self.N_PITCH * self.N_MAIN_QUALITY:-2]
+        m = nn.Softmax(dim = 2)
+        recons_main = m(pred_main)
+        recons_extra = m(pred_extra)
+        recons = torch.cat((recons_main[:,:,:-2], recons_extra, recons_main[:,:,-2:]),2)
         
         return recons, mean, logv, z
 
@@ -127,8 +132,7 @@ class RVAE(nn.Module):
         else:
             batch_size = z.size(0)
 
-        hidden = self.latent2hidden(z)
-
+        hidden = z.repeat(1, self.N_RATIO * self.hidden_factor)
         if self.bidirectional or self.N_LAYERS > 1:
             # unflatten hidden state
             hidden = hidden.view(self.hidden_factor, batch_size, self.N_HIDDEN)
@@ -146,9 +150,9 @@ class RVAE(nn.Module):
         generations = self.tensor(batch_size, self.max_sequence_length,self.N_INPUT).fill_(0).float()
         
         input_sequence = self.tensor(batch_size, self.max_sequence_length, self.N_INPUT).fill_(0).float().cuda()
-        input_sequence[:, 0, -3] = 1 # Initialize START on every beginnings of the sentences
-        input_sequence[:, 1:, -1] = 1 # Initialize N on the rest of the sentences
-        
+        input_sequence[:, 0, -2] = 1 # Initialize START on every beginnings of the sentences
+        m = nn.Softmax(dim = 2)
+
         t = 0
         while t < self.max_sequence_length and len(running_seqs) > 0:
 
@@ -158,18 +162,25 @@ class RVAE(nn.Module):
 
             # create new input_sequence from output
 
-            proba_output = torch.sigmoid(self.outputs2pred(output))
+            pred = self.outputs2pred(output)
+            pred[:,:,-2:] = 0
+            pred_main = torch.cat((pred[:,:,:self.N_PITCH * self.N_MAIN_QUALITY],pred[:,:,-2:]),2)
+            pred_extra = pred[:,:,self.N_PITCH * self.N_MAIN_QUALITY:-2]
+            recons_main = m(pred_main)
+            recons_extra = m(pred_extra)
+            proba_output = torch.cat((recons_main[:,:,:-2], recons_extra, recons_main[:,:,-2:]),2)
             for i in range(n):
-                input_sequence[i,t] = sentence_to_tensor(tensor_to_sentence(proba_output[i], t+1))[t].float()
+                print(tensor_to_sentence(proba_output[i], t+1))
+                input_sequence[i,t+1] = sentence_to_tensor(tensor_to_sentence(proba_output[i], t+1))[t].float()
             
             # save next input
             generations = self._save_sample(generations, input_sequence, sequence_running, t)
             
-            # update gloabl running sequence
-            sequence_mask[sequence_running.long()] = (input_sequence[:, t, -2] != 1)
+            # update global running sequence
+            sequence_mask[sequence_running.long()] = (input_sequence[:, t, -1] != 1)
             sequence_running = sequence_idx.masked_select(sequence_mask)
             # update local running sequences
-            running_mask = (input_sequence[:, t, -2] != 1)
+            running_mask = (input_sequence[:, t, -1] != 1)
             running_seqs = running_seqs.masked_select(running_mask)
             # prune input and hidden state according to local update
             if len(running_seqs) > 0:
