@@ -10,12 +10,12 @@ from data_loader_RVAE import import_dataset
 
 def main():
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
-    print_every = 30
+    print_every = 150
     batch_size = 10
     one_hots, len_sentences = import_dataset()
     
     len_sentences = torch.from_numpy(np.array(len_sentences))
-    save_model_path = "./"
+    save_model_path = "./training"
     model = RVAE(max(len_sentences))
 
     if torch.cuda.is_available():
@@ -31,7 +31,7 @@ def main():
         elif anneal_function == 'linear':
             return min(1, step/x0)
 
-    CE = torch.nn.BCELoss()
+    CE = torch.nn.BCELoss(reduction='sum')
     def loss_fn(pred, target, length, mean, logv, anneal_function, step, k, x0):
        
         # cut-off unnecessary padding from target, and flatten
@@ -40,7 +40,7 @@ def main():
         pred = torch.reshape(pred[:,:-1,:],(batch_size,-1))
        
         # Negative Log Likelihood
-        CE_loss = CE(pred,target)
+        CE_loss = CE(pred,target)/length.float().mean()
 
         # KL Divergence
         KL_loss = -0.5 * torch.sum(1 + logv - mean.pow(2) - logv.exp())
@@ -82,9 +82,9 @@ def main():
             # loss calculation
             
             NLL_loss, KL_loss, KL_weight = loss_fn(recons_data, seq_data[:,:max(length)],
-                length, mean, logv, 'logistic', step, 2.5e-3, 2500)
+                length, mean, logv, 'logistic', step, 2.5e-4, 20000)
 
-            loss = (NLL_loss + KL_weight * KL_loss * 12) / batch_size
+            loss = (NLL_loss + KL_weight * KL_loss) / batch_size
            
             # backward + optimization
            
@@ -110,10 +110,10 @@ def main():
 
 
         # save checkpoint
-        
-        checkpoint_path = os.path.join(save_model_path, "E%i.pt" % epoch)
-        torch.save(model.state_dict(), checkpoint_path)
-        print("Model saved at %s" % checkpoint_path)
+        if epoch % 10 == 9:
+          checkpoint_path = os.path.join(save_model_path, "E%i.pt" % epoch)
+          torch.save(model.state_dict(), checkpoint_path)
+          print("Model saved at %s" % checkpoint_path)
         
         torch.save(tracker, "./tracker.pt")
         print("Tracker saved")
