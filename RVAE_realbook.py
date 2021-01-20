@@ -54,14 +54,15 @@ def main():
     step = 0
     epochs = 1000
     dataset = TensorDataset(one_hots, len_sentences)
-    data_loader = DataLoader(
-        dataset=dataset,
-        batch_size=batch_size,
-        num_workers=cpu_count(),
-        pin_memory=torch.cuda.is_available()
-        )
+    
     for epoch in range(epochs):
-
+        data_loader = DataLoader(
+          dataset=dataset,
+          batch_size=batch_size,
+          num_workers=cpu_count(),
+          pin_memory=torch.cuda.is_available(),
+          shuffle=True
+          )
 
         tracker = defaultdict(tensor)
 
