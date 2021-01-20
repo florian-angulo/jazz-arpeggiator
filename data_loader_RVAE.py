@@ -182,8 +182,6 @@ def sentence_to_tensor(sentence):
             one_hot_tensor[index_chord, -1] = 1
             continue
         elif chord == 'N':
-            # Si รงa arrive t'es un gros naze
-            print('et alors ? ton RVAE marche pas Johnny ?')
             continue
         pitch, main_quality, extra_quality = chord.split(":")
         index_pitch = PITCH_LIST.index(pitch)
@@ -230,6 +228,9 @@ def tensor_to_sentence(one_hot_tensor,length_tensor):
 
 
     for chord_i in range(length_tensor):
+        if one_hot_tensor[chord_i].sum() == 0:
+          chords.append("N")
+          continue
         one_hot_tensor_extend = torch.cat((one_hot_tensor[chord_i,:TOTAL_MAIN],one_hot_tensor[chord_i,-2:]),0)
         index_main = torch.where(one_hot_tensor_extend == torch.max(one_hot_tensor_extend))[0]
         if index_main == TOTAL_MAIN :
@@ -265,7 +266,6 @@ def set_one_hot_dataset():
     max_sequence_length = max(len_sentences)
     # dataset_one_hot = torch.zeros(len(all_sentences), 16, len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
     dataset_one_hot = torch.zeros(len(all_sentences), max_sequence_length, len(PITCH_LIST) * len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 2)
-    dataset_one_hot[:,:,-1] = 1
     print("Converting into tensor")
     pbar = tqdm.tqdm(total = len(all_sentences))
     for i, sentence in enumerate(all_sentences):
