@@ -121,7 +121,7 @@ def get_sentences():
             current_sentence.append("END")
             sentences.append(current_sentence)
             current_sentence = []
-        else:
+        elif i%2==1:
             current_sentence.append(chord) 
     print('total number of sentences : ', len(sentences))
 

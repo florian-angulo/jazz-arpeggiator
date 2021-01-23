@@ -7,8 +7,8 @@ class RVAE(nn.Module):
     N_PITCH = 12
     N_MAIN_QUALITY = 3 # A changer aussi dans data_loader
     N_EXTRA_QUALITY = 3
-    N_RATIO = 8
-    N_LATENT = 16
+    N_RATIO = 4
+    N_LATENT = 8
     N_HIDDEN = N_LATENT*N_RATIO
     N_INPUT = N_PITCH * N_MAIN_QUALITY + N_EXTRA_QUALITY + 2
     word_dropout_rate = 0.75
@@ -16,7 +16,7 @@ class RVAE(nn.Module):
     no_chords = torch.zeros(N_INPUT)
     if torch.cuda.is_available():
         no_chords = no_chords.cuda()
-    def __init__(self, max_sequence_length,rnn_type="rnn",bidirectional=False):
+    def __init__(self, max_sequence_length,rnn_type="gru",bidirectional=True):
         
         
         super(RVAE, self).__init__()
