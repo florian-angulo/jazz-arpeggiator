@@ -11,7 +11,7 @@ from data_loader_RVAE import import_dataset
 def main():
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
     print_every = 150
-    batch_size = 10
+    batch_size = 20
     one_hots, len_sentences = import_dataset()
     
     len_sentences = torch.from_numpy(np.array(len_sentences))
@@ -48,7 +48,7 @@ def main():
 
         return CE_loss, KL_loss, KL_weight
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=2e-3)
 
     tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     step = 0
@@ -83,7 +83,7 @@ def main():
             # loss calculation
             
             NLL_loss, KL_loss, KL_weight = loss_fn(recons_data, seq_data[:,:max(length)],
-                length, mean, logv, 'logistic', step, 2.5e-4, 20000)
+                length, mean, logv, 'logistic', step, 2.5e-3, 50000)
 
             loss = (NLL_loss + KL_weight * KL_loss) / batch_size
            
@@ -91,6 +91,7 @@ def main():
            
             optimizer.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
             step += 1
 
