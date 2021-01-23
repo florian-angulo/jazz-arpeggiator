@@ -73,14 +73,14 @@ def train(epoch):
     global step
     model.train()
     train_loss = 0
-    #beta = 0.5
+    #beta = 0
 
     for batch_idx, (data, _) in enumerate(mnist_trainset):
         data = data.to(device)
         optimizer.zero_grad()
         recon_batch, mu, logvar = model(data)
         #beta = kl_anneal_function('linear',step,1,8*len(mnist_trainset))
-        beta = kl_anneal_function('linear',step,1,4*len(mnist_trainset))
+        beta = kl_anneal_function('linear',step,1,10*len(mnist_trainset))
         loss = loss_function(recon_batch, data, mu, logvar, beta)
         loss.backward()
         train_loss += loss.item()
@@ -92,11 +92,10 @@ def train(epoch):
                 epoch, batch_idx * len(data), len(mnist_trainset.dataset),
                 100. * batch_idx / len(mnist_trainset),
                 loss.item() / len(data)))
+            plt_loss.append(loss.item() / len(data))  # For ploting loss
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(mnist_trainset.dataset)))
-
-    plt_loss.append(train_loss / len(mnist_trainset.dataset))  # For plot loss
 
 
 
@@ -104,7 +103,7 @@ def test(epoch):
     global test_step
     model.eval()
     test_loss = 0
-    #beta = 0.5
+    #beta = 0
     
     with torch.no_grad():
         
@@ -114,7 +113,7 @@ def test(epoch):
             #beta = kl_anneal_function('linear',test_step,1,
             #                          8*len(mnist_testset))
             beta = kl_anneal_function('linear',test_step,1,
-                                      4*len(mnist_testset))
+                                      10*len(mnist_testset))
             test_loss += loss_function(recon_batch, data, mu, logvar, beta)  \
                                       .item()
             test_step += 1
@@ -130,7 +129,6 @@ def test(epoch):
 
     test_loss /= len(mnist_testset.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
-
 
 
 
@@ -156,6 +154,7 @@ test_step = 0
 
 if __name__ == "__main__":
     plt_loss = []
+
     for epoch in range(1, epochs + 1):
         train(epoch)
         test(epoch)
@@ -165,11 +164,19 @@ if __name__ == "__main__":
             sample = model.decode(sample).to(device)
             save_image(sample.view(64, 1, 28, 28),
                         'results/sample_' + str(epoch) + '.png')
-    
-    plt.plot(np.linspace(1,epochs,epochs).tolist(),plt_loss)
+'''
+    plt.rcParams.update({
+        "text.usetex": True})
+    plt.plot(np.linspace(1,epochs,epochs*10-1).tolist(),plt_loss[1:],
+             label=r'$\beta = 0$')
     plt.xticks(np.arange(1, epochs+1, step=1))
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
+    plt.xlabel(r'$Epoch$')
+    plt.ylabel(r'$Loss$')
     plt.xlim((0,epochs+1))
     plt.grid()
+    plt.legend()
+    #plt.savefig('VAEMNIST_loss_beta_constant.eps', dpi=600, format='eps')
+    #plt.savefig('VAEMNIST_loss_beta_varying.eps', dpi=600, format='eps')
+    plt.savefig('VAEMNIST_loss_beta.pdf')
     plt.show()
+'''
