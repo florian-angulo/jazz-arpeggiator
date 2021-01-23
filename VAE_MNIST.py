@@ -95,8 +95,7 @@ def train(epoch):
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(mnist_trainset.dataset)))
-    print('====> Epoch: {} Latest beta_train: {:.4f}'.format(
-          epoch, beta))
+
     plt_loss.append(train_loss / len(mnist_trainset.dataset))  # For plot loss
 
 
@@ -131,8 +130,7 @@ def test(epoch):
 
     test_loss /= len(mnist_testset.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
-    print('====> Epoch: {} Latest beta_test: {:.4f}'.format(
-          epoch, beta))
+
 
 
 
