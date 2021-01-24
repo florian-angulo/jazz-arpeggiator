@@ -1,17 +1,17 @@
 import os
-import time
 import torch
 import numpy as np
 from multiprocessing import cpu_count
 from torch.utils.data import DataLoader, TensorDataset
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from model import RVAE
 from data_loader_RVAE import import_dataset
 
+
 def main():
-    ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
-    print_every = 150
-    batch_size = 20
+
+    print_every = 50 # Priting advancement during training every print_every sentences
+    batch_size = 5
     one_hots, len_sentences = import_dataset()
     
     len_sentences = torch.from_numpy(np.array(len_sentences))
@@ -23,8 +23,7 @@ def main():
 
     print(model)
 
-
-  
+    # Warm-up coefficient calculation function
     def kl_anneal_function(anneal_function, step, k, x0):
         if anneal_function == 'logistic':
             return float(1/(1+np.exp(-k*(step-x0))))
@@ -32,15 +31,14 @@ def main():
             return min(1, step/x0)
 
     CE = torch.nn.BCELoss(reduction='sum')
-    def loss_fn(pred, target, length, mean, logv, anneal_function, step, k, x0):
-       
-        # cut-off unnecessary padding from target, and flatten
 
-        target = torch.reshape(target[:, 1:,:],(batch_size,-1))
-        pred = torch.reshape(pred[:,:-1,:],(batch_size,-1))
+    def loss_fn(pred, target, length, mean, logv, anneal_function, step, k, x0):
+
+        target = torch.reshape(target[:, 1:, :], (batch_size, -1))
+        pred = torch.reshape(pred[:, :-1, :], (batch_size, -1))
        
-        # Negative Log Likelihood
-        CE_loss = CE(pred,target)/length.float().mean()
+        # Reconstruction Loss
+        CE_loss = CE(pred, target)/length.float().mean()
 
         # KL Divergence
         KL_loss = -0.5 * torch.sum(1 + logv - mean.pow(2) - logv.exp())
@@ -56,6 +54,7 @@ def main():
     dataset = TensorDataset(one_hots, len_sentences)
     
     for epoch in range(epochs):
+
         data_loader = DataLoader(
           dataset=dataset,
           batch_size=batch_size,
@@ -68,10 +67,8 @@ def main():
 
         model.train()
 
-
         for iteration, (seq_data, length) in enumerate(data_loader):
-            
-            #print("max length=",max(length))
+
             batch_size = seq_data.size(0)
 
             if torch.cuda.is_available():
@@ -80,22 +77,21 @@ def main():
             # Forward pass
             recons_data, mean, logv, z = model(seq_data, length)
 
-            # loss calculation
-            
+            # Loss calculation
             NLL_loss, KL_loss, KL_weight = loss_fn(recons_data, seq_data[:,:max(length)],
                 length, mean, logv, 'logistic', step, 2.5e-3, 50000)
 
             loss = (NLL_loss + KL_weight * KL_loss) / batch_size
            
-            # backward + optimization
-           
+            # Backward
             optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
+
             step += 1
 
-            # bookkeepeing
+            # Save Losses
             tracker['ELBO'] = torch.cat((tracker['ELBO'], loss.data.view(1, -1)), dim=0)
             tracker['NLL_Loss'] = torch.cat((tracker['NLL_Loss'], (NLL_loss/batch_size).data.view(1, -1)), dim=0)
             tracker['KL_Loss'] = torch.cat((tracker['KL_Loss'], (KL_loss/batch_size).data.view(1, -1)), dim=0)
@@ -103,20 +99,16 @@ def main():
             if iteration % print_every == 0 or iteration+1 == len(data_loader):
                 print("Batch %04d/%i, Loss %9.4f, NLL-Loss %9.4f, KL-Loss %9.4f, KL-Weight %6.3f"
                       % (iteration, len(data_loader)-1, loss.item(), NLL_loss.item()/batch_size,
-                      KL_loss.item()/batch_size, KL_weight))
-
-        
+                         KL_loss.item()/batch_size, KL_weight))
 
         print("Epoch %02d/%i, Mean ELBO %9.4f" % (epoch, epochs, tracker['ELBO'].mean()))
 
-
-
-        # save checkpoint
+        # Save checkpoint
         if epoch % 10 == 9:
-          checkpoint_path = os.path.join(save_model_path, "E%i.pt" % epoch)
-          torch.save(model.state_dict(), checkpoint_path)
-          print("Model saved at %s" % checkpoint_path)
-        
+            checkpoint_path = os.path.join(save_model_path, "E%i.pt" % epoch)
+            torch.save(model.state_dict(), checkpoint_path)
+            print("Model saved at %s" % checkpoint_path)
+            
         torch.save(tracker, "./tracker.pt")
         print("Tracker saved")
         

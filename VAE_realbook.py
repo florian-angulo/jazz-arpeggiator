@@ -67,26 +67,50 @@ class VAE(nn.Module):
         return self.decode(z), mu, logvar
 
 
+def kl_anneal_function(anneal_function, step, k, x0):
+    """ Beta update function
+        
+        Parameters
+        ----------
+        anneal_function : string
+            What type of update (logisitc or linear)
+        step : int
+            Which step of the training
+        k : float
+            Coefficient of the logistic function
+        x0 : float
+            Delay of the logistic function or slope of the linear function
+
+        Returns
+        -------
+        beta : float
+            Weight of the KL divergence in the loss function 
+
+        """
+    if anneal_function == 'logistic':
+        return float(1/(1+np.exp(-k*(step-x0))))
+    elif anneal_function == 'linear':
+        return min(1, step/x0)
 
 # Reconstruction + KL divergence losses summed over all elements and batch
 def loss_function(recon_x, x, mu, logvar, beta):
     BCE = F.binary_cross_entropy(recon_x.view(-1, 16*(12*3+3)), x.view(-1, 16*(12*3+3)), reduction='sum')
-
-    # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
+    
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-
     return BCE + beta*KLD
 
+step = 0
 
-def train(epoch):
+def train():
+    global step
     model.train()
     train_loss = 0
-    beta = epoch/epochs
     for batch_idx, data in enumerate(realbook_dataset):
         data = data.to(device)
         optimizer.zero_grad()
-        
+
         recon_batch, mu, logvar = model(data)
+        beta = kl_anneal_function('linear', step, 1, 10*len(realbook_dataset))
         loss = loss_function(recon_batch, data, mu, logvar, beta)
         loss.backward()
         train_loss += loss.item()
@@ -96,78 +120,14 @@ def train(epoch):
                 epoch, batch_idx * len(data), Nchunks,
                 100. * batch_idx * len(data) / Nchunks,
                 loss.item() / len(data)))
-
+        step += 1
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / Nchunks))
 
-global conf_matrix
-global cm
-conf_matrix = np.zeros((108,108))
-qal = ['','m','dim']
-classes = ''
-# for pitch in PITCH_LIST:
-#     classes.append([pitch]*3+qal)
-# classes.append(['']*72)
- 
-def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix', cmap=plt.cm.Blues):
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=0)[:, np.newaxis]
-        print("Normalized confusion matrix")
-    else:
-        print('Confusion matrix, without normalization')
 
-    # print(cm)
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-    # tick_marks = np.arange(len(classes))
-    # plt.xticks(tick_marks, classes, rotation=45)
-    # plt.yticks(tick_marks, classes)
-
-    plt.tight_layout()
-    plt.xlabel('True label')
-    plt.ylabel('Predicted label')
-    
-def test():
-    # model.eval()
-    test_loss = 0
-    # beta = epoch/epochs
-    with torch.no_grad():
-        for batch_idx, data in enumerate(realbook_dataset):
-            data = data.to(device)
-            recon_batch, mu, logvar = model(data)
-            # test_loss += loss_function(recon_batch, data, mu, logvar).item()
-            data  = data.numpy()
-            recon = recon_batch.numpy()
-            ids = np.transpose(np.append(np.array(range(0,36)),[0,36,72]))
-            
-            for i in range(len(data)):
-                for j in range(len(data[0])):
-                    data_id = int(np.dot(data[i,j],ids))
-                    # print(data_id)
-                    rec1 = recon[i,j,0:36]
-                    rec2 = recon[i,j,36:]
-                    recon_id = np.argmax(rec1) + np.argmax(rec2)*36
-                    # print(recon_id)  
-                    
-                    conf_matrix[recon_id,data_id] +=1
-    plot_confusion_matrix(conf_matrix, classes,True)
-    # plot_confusion_matrix(conf_matrix[0:36,0:36], classes,True)
-    #         if i == 0:
-    #             n = min(data.size(0), 8)
-    #             comparison = torch.cat([data[:n],
-    #                                   recon_batch.view(batch_size, 1, 28, 28)[:n]])
-    #             save_image(comparison.cpu(),
-    #                       'results/reconstruction_' + str(epoch) + '.png', nrow=n)
-
-    # test_loss /= len(mnist_testset.dataset)
-    # print('====> Test set loss: {:.4f}'.format(test_loss))
-
-
-epochs = 5
+epochs = 20
 batch_size = 128
 log_interval = 100
-
 
 realbook_dataset = data_loader.import_dataset()
 Nchunks = len(realbook_dataset)
@@ -186,18 +146,11 @@ if __name__ == "__main__":
         model.load_state_dict(torch.load("./model_realbook.pt"))
     else:
         for epoch in range(1, epochs + 1):
-            train(epoch)
-            # test(epoch)
+            train()
         torch.save(model.state_dict(), "./model_realbook.pt")
         with torch.no_grad():
             inp = realbook_dataset[0]
             inp = inp[0:3]
-            out,mu,logvar = model(inp) 
+            out, mu, logvar = model(inp)
             inp = inp.numpy()
             out = out.numpy()
-    # with torch.no_grad():
-    #     sample = torch.randn(1, 40).to(device)
-    #     sample = model.decode(sample).cpu()
-    #     sample = sample.numpy()
-
-    #     print(s2c.sample_to_chords(sample))

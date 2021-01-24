@@ -19,9 +19,6 @@ symbols = ['', 'm', '+', 'dim', '7',
            'power', 'tristan', '/E', 'm7/E-', 'add2',
            '7omit3',]
 """
-# TODO : convertir la notation de l'énoncé en notation music21
-
-
 
 # A changer selon l'emplacement de MuseScore (utile seulement pour générer la partition)
 environment.set("musescoreDirectPNGPath", "C:/Program Files/MuseScore 3/bin/MuseScore3.exe")
@@ -65,6 +62,7 @@ class Chord:
             0.3333333333333 : triplet eigth note
             0.25 : semi-quaver
     """
+
     def __init__(self, name, duration=1, order="up", speed=0.25):
         self.name = name
         self.harmony_chord = harmony.ChordSymbol(name)
@@ -72,23 +70,20 @@ class Chord:
         self.list_notes = []
         self.cardinality_ordered = 0
         self.list_notes_ordered = []
-        
 
         self.order = order
-        self.duration = duration 
+        self.duration = duration
         self.speed = speed
 
         self._get_notes()
         self._set_order_notes()
 
-
     def _get_notes(self):
-        """ Compute list_notes and cardinality 
+        """ Compute list_notes and cardinality
         """
         self.list_notes = list(self.harmony_chord.pitches)
         self.cardinality = len(self.list_notes)
-        
-        
+
     def _set_order_notes(self):
         """ Compute the order of the notes in the arpeggio
         """
@@ -141,7 +136,6 @@ class Chord:
         print(f"List_notes_ordered : {[str(p) for p in self.list_notes_ordered]}")
         print(f"Total number of notes : ", int(self.duration / self.speed))
 
-        
 
     def visualize(self, PIANOROLL=False):
         """ Visualize the arpeggio under a pianoroll format or a sheetmusic format (Musescore needed)
@@ -157,23 +151,17 @@ class Chord:
             image = Image.open('test-1.png')
             image.show()
 
-
     def output(self):
         """ Mega sound
         """
         stream_output = self._set_stream()
         stream_output.show('midi')
-    
-
 
 def convert_format(chord_str):
     return "".join(chord_str.split(":"))
 
 
-
-
 def output_list_chords(list_chords_str):
-    n_bar = len(list_chords_str)
     list_chords = []
 
     for chord_str in list_chords_str:
@@ -201,10 +189,8 @@ def output_list_chords(list_chords_str):
     total_stream.show('midi')
 
 
-
-
 def test():
-    n_bar = 2 # TODO : on suppose toujours que la key signature vaut 4/4
+    n_bar = 2
     c1 = Chord("Adim7", duration=4*n_bar, order="excl", speed=0.33333333333)
 
     c1.print_params()
@@ -215,10 +201,6 @@ def test():
 def main():
     list_chords_str = ['G:maj7','B:dim','C:maj7','D#:min','D#:min7','C#:maj','D:maj','C:maj7','C:dim7','A:dim','G#:dim','C:maj7','F#:min7','F#:min','C:dim7','A#:maj']
     output_list_chords(list_chords_str)
-
-
-
-
 
 if __name__ == '__main__':
     main()

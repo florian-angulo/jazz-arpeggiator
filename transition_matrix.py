@@ -1,10 +1,9 @@
-""" 
+"""
     Transition matrix of the realbook dataset
 """
 
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
+
 
 def set_chord_transition_matrix(sentences, chord_indexes):
     transition_matrix = np.zeros((len(chord_indexes), len(chord_indexes)))
@@ -25,10 +24,10 @@ def get_transition_list(transition_matrix, chord_indexes, list_chords_order):
     """
     width_print = 50
     for c, i in chord_indexes.items():
-        print(c.ljust(width_print,'.'))
+        print(c.ljust(width_print, '.'))
 
         to_chords_list = list((list_chords_order[index_non_zero], transition_matrix[i][index_non_zero]) for index_non_zero in np.nonzero(transition_matrix[i])[0])
-        to_chords_list = sorted(to_chords_list, key= lambda chord_count : chord_count[1], reverse=True)
+        to_chords_list = sorted(to_chords_list, key=lambda chord_count: chord_count[1], reverse=True)
 
         for chord, count in to_chords_list:
             print(f"\t {chord} : {count}", end=' ')
@@ -37,9 +36,9 @@ def get_transition_list(transition_matrix, chord_indexes, list_chords_order):
             print()
 
 
-
 def main():
-    path = 'chord_sentences.txt' # the txt data source
+
+    path = 'chord_sentences.txt'  # The txt data source
     text = open(path).read()
     print('corpus length:', len(text))
 
@@ -54,7 +53,6 @@ def main():
 
     # Put sentences in list
     sentences = []
-    last_chord = ""
 
     for i, chord in enumerate(chord_seq):
         if chord == "_START_":
@@ -63,11 +61,12 @@ def main():
             sentences.append(current_sentence)
         else:
             current_sentence.append(chord) 
-            last_chord = chord
+
     print('total number of sentences : ', len(sentences))
 
     transition_matrix = set_chord_transition_matrix(sentences, chord_indexes)
     get_transition_list(transition_matrix, chord_indexes, list_chords_order)
+
 
 if __name__ == '__main__':
     main()

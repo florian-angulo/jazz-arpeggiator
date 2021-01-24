@@ -13,8 +13,6 @@ Representation of a token : tensor of size (N_PITCH * N_MAIN_QUALITIES + N_EXTRA
 """
 
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 import re
 import torch
 import tqdm
@@ -44,21 +42,18 @@ def accept_sentence(sentence):
     Returns
     -------
     bool, list
-        True, new_sentence : if the sentence is accepted, and new_sentence may be a modified version of the original sentence
-        False, None : if the sentence is not accepted i.e. the quality of a chord is not in the set of considered qualities 
-    
+        True, new_sentence : if the sentence is accepted, and new_sentence may
+        be a modified version of the original sentence
+        False, None : if the sentence is not accepted i.e. the quality of a 
+        chord is not in the set of considered qualities 
     """
 
     def relative_minor(pitch):
-      return PITCH_LIST[(PITCH_LIST.index(pitch)-3) % len(PITCH_LIST)]
+        return PITCH_LIST[(PITCH_LIST.index(pitch)-3) % len(PITCH_LIST)]
 
     for i, chord in enumerate(sentence[1:-1]):
         pitch, quality = chord.split(":")
 
-
-        #if bool(re.search('aug|sus|hdim', quality)): # TODO : a prendre en compte un jour
-         #   return False, None
-        
         if quality not in MAIN_QUALITY_LIST:
             # i.e not "min", "maj" or "dim"
             if quality == "7": # dominant 7th chord alone
@@ -90,8 +85,7 @@ def accept_sentence(sentence):
                 return False, None
         else:
             sentence[i+1] += ":N"
-    return True, sentence        
-
+    return True, sentence
 
 
 def get_sentences():
@@ -112,10 +106,8 @@ def get_sentences():
 
     # Find total number of diff chords
     chord_indexes = dict((c, i) for i, c in enumerate(chars))
-    list_chords_order = np.array([c for c, i in chord_indexes.items()])
     num_chars = len(chord_indexes)
     print('total diff chords:', num_chars)
-
 
     # Put sentences in list
     sentences = []
@@ -132,8 +124,6 @@ def get_sentences():
     print('total number of sentences : ', len(sentences))
 
     print("."*50)
-
-
 
     # Accept or reject some sentences depending on the qualities chosen
     all_sentences_ok = []
@@ -164,18 +154,6 @@ def sentence_to_tensor(sentence):
         Tensor of size N_CHORDS x (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
 
     """
-    # To get a tensor of size N_CHORDS x N_PITCH x N_MAIN_QUALITIES x N_EXTRA_QUALITIES
-
-    # one_hot_tensor = torch.zeros(len(sentence), len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
-    
-    # for index_chord, chord in enumerate(sentence):
-    #     pitch, main_quality, extra_quality = chord.split(":")
-    #     index_pitch = PITCH_LIST.index(pitch)
-    #     index_main_quality = MAIN_QUALITY_LIST.index(main_quality)
-    #     all_extra_qualities = extra_quality.split(",")
-    #     for extra in all_extra_qualities:
-    #         index_extra_quality = EXTRA_QUALITY_LIST.index(extra)
-    #         one_hot_tensor[index_chord, index_pitch, index_main_quality, index_extra_quality] = 1
 
     one_hot_tensor = torch.zeros(len(sentence), len(PITCH_LIST)*len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 2)
     
@@ -198,9 +176,8 @@ def sentence_to_tensor(sentence):
         all_extra_qualities = extra_quality.split(",")
         for extra in all_extra_qualities:
             index_extra_quality = EXTRA_QUALITY_LIST.index(extra)
-            one_hot_tensor[index_chord , TOTAL_MAIN + index_extra_quality] = 1 # Set 1 to the extra color in the second part of the vector
+            one_hot_tensor[index_chord, TOTAL_MAIN + index_extra_quality] = 1 # Set 1 to the extra color in the second part of the vector
     
-
     return one_hot_tensor
 
 
@@ -221,25 +198,13 @@ def tensor_to_sentence(one_hot_tensor,length_tensor):
     """
     chords = []
 
-    # From a tensor of size N_CHORDS x N_PITCH x N_MAIN_QUALITIES x N_EXTRA_QUALITIES
-    # for chord_i in range(one_hot_tensor.shape[0]): 
-    #     index_pitch, index_main_quality, index_extra_quality = torch.where(one_hot_tensor[chord_i,:,:,:] == 1)
-
-    #     chord_str = PITCH_LIST[index_pitch[0]] + ":" + MAIN_QUALITY_LIST[index_main_quality[0]] + ":"
-
-    #     for extra_i in index_extra_quality:
-    #         chord_str += EXTRA_QUALITY_LIST[extra_i] + ","
-        
-    #     chords.append(chord_str[:-1])
-
-
     for chord_i in range(length_tensor):
         if one_hot_tensor[chord_i].sum() == 0:
-          chords.append("N")
-          continue
-        one_hot_tensor_extend = torch.cat((one_hot_tensor[chord_i,:TOTAL_MAIN],one_hot_tensor[chord_i,-2:]),0)
+            chords.append("N")
+            continue
+        one_hot_tensor_extend = torch.cat((one_hot_tensor[chord_i, :TOTAL_MAIN], one_hot_tensor[chord_i, -2:]), 0)
         index_main = torch.where(one_hot_tensor_extend == torch.max(one_hot_tensor_extend))[0]
-        if index_main == TOTAL_MAIN :
+        if index_main == TOTAL_MAIN:
             chords.append("START")
         elif index_main == TOTAL_MAIN + 1:
             chords.append("END")
@@ -248,15 +213,14 @@ def tensor_to_sentence(one_hot_tensor,length_tensor):
             index_main_quality = index_main % len(MAIN_QUALITY_LIST)
 
             chord_str = PITCH_LIST[index_pitch] + ":" + MAIN_QUALITY_LIST[index_main_quality] + ":"
-            index_extra_quality = torch.where(one_hot_tensor[chord_i,TOTAL_MAIN:] == torch.max(one_hot_tensor[chord_i,TOTAL_MAIN:TOTAL_MAIN+3]))[0]
+            index_extra_quality = torch.where(one_hot_tensor[chord_i, TOTAL_MAIN:] ==
+                                              torch.max(one_hot_tensor[chord_i, TOTAL_MAIN:TOTAL_MAIN + 3]))[0]
             for extra_i in index_extra_quality:
                 chord_str += EXTRA_QUALITY_LIST[extra_i] + ","
 
             chords.append(chord_str[:-1])
 
     return chords
-
-
 
 
 def set_one_hot_dataset():
@@ -268,23 +232,22 @@ def set_one_hot_dataset():
         Tensor of size N_SENTENCES x N_CHORDS x (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
         It contains chords from the realbook dataset as one-hot vectors
     """
+
     all_sentences, len_sentences = get_sentences()
-    print(len(all_sentences))
     max_sequence_length = max(len_sentences)
-    # dataset_one_hot = torch.zeros(len(all_sentences), 16, len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
     dataset_one_hot = torch.zeros(len(all_sentences), max_sequence_length, len(PITCH_LIST) * len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 2)
+
     print("Converting into tensor")
     pbar = tqdm.tqdm(total = len(all_sentences))
     for i, sentence in enumerate(all_sentences):
         dataset_one_hot[i,:len_sentences[i],:] = sentence_to_tensor(sentence)
         pbar.update(1)
-    
+
     pbar.close()
     torch.save(dataset_one_hot, 'dataset_sentences.pt')
     np.save("len_sentences.npy", np.array(len_sentences))
 
     return dataset_one_hot, len_sentences
-
 
 
 def import_dataset():
@@ -304,29 +267,18 @@ def import_dataset():
         print("Computing dataset...")
         print("."*50)
         dataset_one_hot, len_sentences = set_one_hot_dataset()
-        
+
     print("Dataset loaded !")
     
     return dataset_one_hot, len_sentences
         
     
-
-
 def main():
     import_dataset()
     
 
-
-
 def test():
     print("=== TEST ===")
-    # chunk_test = ['C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'G:maj:maj7', 'G:maj:min7', 'G:maj:min7', 'G:maj:min7', 'G:maj:min7', 'G:maj:min7', 'G#:dim:min7', 'G:maj:min7,maj7']
-    # t = chunk_to_tensor(chunk_test)
-    # print(t)
-    # str_t = tensor_to_chunk(t)
-    # plot_chord(t[8,:])
-    # print(chunk_test)
-    # print(str_t)
 
     dataset_one_hot, len_sentences = import_dataset()
     str_c = tensor_to_sentence(dataset_one_hot[40,:,:],len_sentences[40]+4)

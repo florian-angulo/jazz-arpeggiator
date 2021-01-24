@@ -11,7 +11,6 @@ Representation of a chord : tensor of size (N_PITCH * N_MAIN_QUALITIES + N_EXTRA
 """
 
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 import re
 import torch
@@ -50,8 +49,6 @@ def sentence_to_chunks(sentence, N_CHORDS=16):
         chunks.append(sentence[i : i+N_CHORDS])
     return chunks
 
-
-
 def accept_chunk(chunk):
     """ Accept / modify a chunk depending on the set of qualities
     Simplify complex colors (ex : D:maj(2,*3)/b7) to match an available chord (ex : D:maj:N)
@@ -64,8 +61,10 @@ def accept_chunk(chunk):
     Returns
     -------
     bool, list
-        True, new_chunk : if the chunk is accepted, and new_chunk may be a modified version of the original chunk
-        False, None : if the chunk is not accepted i.e. the quality of a chord is not in the set of considered qualities 
+        True, new_chunk : if the chunk is accepted, and new_chunk may be a 
+        modified version of the original chunk
+        False, None : if the chunk is not accepted i.e. the quality of a 
+        chord is not in the set of considered qualities 
     
     """
 
@@ -73,7 +72,7 @@ def accept_chunk(chunk):
         pitch, quality = chord.split(":")
 
 
-        if bool(re.search('aug|sus|hdim', quality)): # TODO : a prendre en compte un jour
+        if bool(re.search('aug|sus|hdim', quality)): 
             return False, None
         
         if quality not in MAIN_QUALITY_LIST:
@@ -107,7 +106,6 @@ def accept_chunk(chunk):
     return True, chunk        
 
 
-
 def get_chunks():
     """ Get chunks of chords from the realbook dataset
 
@@ -116,9 +114,6 @@ def get_chunks():
     list
         List of list of accepted chords (as str)
     """
-    # Repeated chord accepted or not (i.e. if REPEAT==False: C:maj C:maj C:maj C:maj G:9 G:9 -> C:maj C:9)
-    REPEAT = True
-
     # Number of chords in a chunk
     N_CHORDS = 16
 
@@ -153,7 +148,7 @@ def get_chunks():
 
     print("."*50)
 
-    
+
     # Convert sentences into chunks
     all_chunks = []
     for sentence in sentences:
@@ -174,7 +169,6 @@ def get_chunks():
     return all_chunks_ok
 
 
-
 def plot_chord(tensor_chord):
     """ Plot a one-hot tensor
 
@@ -182,11 +176,8 @@ def plot_chord(tensor_chord):
     ----------
     torch.tensor
         Tensor of size len(PITCH_LIST) x len(MAIN_QUALITY_LIST) x len(EXTRA_QUALITY_LIST)
-        It must be full of zeros, except at one index
-
-    
+        It must be full of zeros, except at one index   
     """
-
 
     tensor_plot = torch.zeros((TOTAL_MAIN, len(EXTRA_QUALITY_LIST)))
 
@@ -229,18 +220,6 @@ def chunk_to_tensor(chunk):
         Tensor of size N_CHORDS x (N_PITCH * N_MAIN_QUALITIES + N_EXTRA_QUALITIES)
 
     """
-    # To get a tensor of size N_CHORDS x N_PITCH x N_MAIN_QUALITIES x N_EXTRA_QUALITIES
-
-    # one_hot_tensor = torch.zeros(len(chunk), len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
-    
-    # for index_chord, chord in enumerate(chunk):
-    #     pitch, main_quality, extra_quality = chord.split(":")
-    #     index_pitch = PITCH_LIST.index(pitch)
-    #     index_main_quality = MAIN_QUALITY_LIST.index(main_quality)
-    #     all_extra_qualities = extra_quality.split(",")
-    #     for extra in all_extra_qualities:
-    #         index_extra_quality = EXTRA_QUALITY_LIST.index(extra)
-    #         one_hot_tensor[index_chord, index_pitch, index_main_quality, index_extra_quality] = 1
 
     one_hot_tensor = torch.zeros(len(chunk), len(PITCH_LIST)*len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST))
 
@@ -276,18 +255,6 @@ def tensor_to_chunk(one_hot_tensor):
     
     """
     chords = []
-
-    # From a tensor of size N_CHORDS x N_PITCH x N_MAIN_QUALITIES x N_EXTRA_QUALITIES
-    # for chord_i in range(one_hot_tensor.shape[0]): 
-    #     index_pitch, index_main_quality, index_extra_quality = torch.where(one_hot_tensor[chord_i,:,:,:] == 1)
-
-    #     chord_str = PITCH_LIST[index_pitch[0]] + ":" + MAIN_QUALITY_LIST[index_main_quality[0]] + ":"
-
-    #     for extra_i in index_extra_quality:
-    #         chord_str += EXTRA_QUALITY_LIST[extra_i] + ","
-        
-    #     chords.append(chord_str[:-1])
-
 
     for chord_i in range(one_hot_tensor.shape[0]):
         index_main = torch.where(one_hot_tensor[chord_i,:TOTAL_MAIN] == torch.max(one_hot_tensor[chord_i,:TOTAL_MAIN]))[0]
@@ -334,7 +301,6 @@ def set_one_hot_dataset():
     return dataset_one_hot
 
 
-
 def import_dataset():
     """ Import the dataset
 
@@ -353,27 +319,16 @@ def import_dataset():
         dataset_one_hot = set_one_hot_dataset()
 
     print("Dataset loaded !")
-    
+
     return dataset_one_hot
-        
-    
 
 
 def main():
     import_dataset()
-    
-
 
 
 def test():
     print("=== TEST ===")
-    # chunk_test = ['C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'C:maj:N', 'G:maj:maj7', 'G:maj:min7', 'G:maj:min7', 'G:maj:min7', 'G:maj:min7', 'G:maj:min7', 'G#:dim:min7', 'G:maj:min7,maj7']
-    # t = chunk_to_tensor(chunk_test)
-    # print(t)
-    # str_t = tensor_to_chunk(t)
-    # plot_chord(t[8,:])
-    # print(chunk_test)
-    # print(str_t)
 
     dataset_one_hot = import_dataset()
     print(dataset_one_hot.size())
@@ -392,7 +347,5 @@ def test():
     print("=== END TEST ===")
 
 
-
 if __name__ == '__main__':
     test()
-
