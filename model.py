@@ -126,7 +126,7 @@ class RVAE(nn.Module):
         sorted_lengths, sorted_idx = torch.sort(length, descending=True)
         input_sequence = input_sequence[sorted_idx]
 
-        mean, logv = self.encode(input_sequence, sorted_lengths, batch_size)
+        mean, logv = self.encode(input_sequence, sorted_lengths, batch_size,use_dropout=True)
 
         z = self.sample(mean, logv, batch_size)
         
