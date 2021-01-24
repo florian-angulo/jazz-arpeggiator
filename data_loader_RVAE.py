@@ -49,22 +49,29 @@ def accept_sentence(sentence):
     
     """
 
+    def relative_minor(pitch):
+      return PITCH_LIST[(PITCH_LIST.index(pitch)-3) % len(PITCH_LIST)]
+
     for i, chord in enumerate(sentence[1:-1]):
         pitch, quality = chord.split(":")
 
 
-        if bool(re.search('aug|sus|hdim', quality)): # TODO : a prendre en compte un jour
-            return False, None
+        #if bool(re.search('aug|sus|hdim', quality)): # TODO : a prendre en compte un jour
+         #   return False, None
         
         if quality not in MAIN_QUALITY_LIST:
             # i.e not "min", "maj" or "dim"
             if quality == "7": # dominant 7th chord alone
                 sentence[i+1] = pitch + ":maj:min7"
+            elif re.search('aug',quality): # Caug is approximated by A:min:maj7
+              sentence[i+1] = relative_minor(pitch) + ":min:maj7"
+            elif re.search('sus',quality):
+              sentence[i+1] = pitch + ':maj:N'
             elif bool(re.search('maj7|maj\(7', quality)): # maj7 alone OR maj(7 + other extra color)
                 sentence[i+1] = pitch + ":maj:maj7"
             elif bool(re.search('min7|min\(7', quality)): # min7 alone OR min(7 + other extra color)
                 sentence[i+1] = pitch + ":min:min7"
-            elif bool(re.search('dim7', quality)):
+            elif bool(re.search('dim7|hdim7', quality)):
                 sentence[i+1] = pitch + ":dim:min7"
             elif bool(re.search('7\(|7/', quality)): # dominant 7th chord + other extra colors
                 sentence[i+1] = pitch + ":maj:min7"
@@ -77,13 +84,12 @@ def accept_sentence(sentence):
                 sentence[i+1] = pitch + ":min:N"
             elif bool(re.search('maj|6\(', quality)): # Major + other color
                 sentence[i+1] = pitch + ":maj:N"
-            elif bool(re.search('dim', quality)): # dimished + other color
+            elif bool(re.search('dim|hdim', quality)): # dimished + other color
                 sentence[i+1] = pitch + ":dim:N"
             else:
                 return False, None
         else:
             sentence[i+1] += ":N"
-
     return True, sentence        
 
 
@@ -134,7 +140,7 @@ def get_sentences():
     len_sentences = []
     for sentence in sentences:
         is_accepted, transformed_sentence = accept_sentence(sentence)
-        if is_accepted:
+        if is_accepted and len(transformed_sentence) < 205:
             all_sentences_ok.append(transformed_sentence)
             len_sentences.append(len(transformed_sentence))
 
@@ -263,6 +269,7 @@ def set_one_hot_dataset():
         It contains chords from the realbook dataset as one-hot vectors
     """
     all_sentences, len_sentences = get_sentences()
+    print(len(all_sentences))
     max_sequence_length = max(len_sentences)
     # dataset_one_hot = torch.zeros(len(all_sentences), 16, len(PITCH_LIST), len(MAIN_QUALITY_LIST), len(EXTRA_QUALITY_LIST))
     dataset_one_hot = torch.zeros(len(all_sentences), max_sequence_length, len(PITCH_LIST) * len(MAIN_QUALITY_LIST) + len(EXTRA_QUALITY_LIST) + 2)
