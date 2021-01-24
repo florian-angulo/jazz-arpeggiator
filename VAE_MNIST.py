@@ -185,7 +185,8 @@ if __name__ == "__main__":
             sample = model.decode(sample).to(device)
             save_image(sample.view(64, 1, 28, 28),
                         'results/sample_' + str(epoch) + '.png')
-'''
+    
+    '''
     plt.rcParams.update({
         "text.usetex": True})
     plt.plot(np.linspace(1,epochs,epochs*10-1).tolist(),plt_loss[1:],
@@ -200,4 +201,29 @@ if __name__ == "__main__":
     #plt.savefig('VAEMNIST_loss_beta_varying.eps', dpi=600, format='eps')
     plt.savefig('VAEMNIST_loss_beta.pdf')
     plt.show()
-'''
+    '''
+
+    '''
+    digitset = torch.load('digitset_interpolation.pt')
+    recon_batch, mu, logvar = model(digitset)
+    z = model.reparameterize(mu,logvar)
+    z6 = z[0]
+    z2 = z[1]
+    z7 = z[2]
+    z1 = z[3]
+    Nx = Ny = 10
+    zg = torch.zeros(Ny,z.size(1))
+    zd = torch.zeros(Ny,z.size(1))
+    Z  = torch.zeros(Nx, Ny, z.size(1))
+    
+    for i in range(Ny):
+        zg[i] = ((z2*i + (Ny-i)*z6)/Ny)
+        zd[i] = ((z1*i + (Ny-i)*z7)/Ny)
+    
+    for j in range(Nx):
+        Z[j] = (zd*j + (Nx-j)*zg)/Nx
+        
+    sample = model.decode(Z.to(device)).to(device)
+    save_image(sample.view(Nx*Ny, 1, 28, 28),
+    'results/LATENTSPACE.png',nrow = Ny)
+    '''
