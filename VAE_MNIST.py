@@ -51,6 +51,25 @@ class VAE(nn.Module):
 
 
 def kl_anneal_function(anneal_function, step, k, x0):
+    """ Beta update function
+        
+        Parameters
+        ----------
+        anneal_function : string
+            What type of update (logisitc or linear)
+        step : int
+            Which step of the training
+        k : float
+            Coefficient of the logistic function
+        x0 : float
+            Delay of the logistic function or slope of the linear function
+
+        Returns
+        -------
+        beta : float
+            Weight of the KL divergence in the loss function 
+
+        """
     if anneal_function == 'logistic':
         return float(1/(1+np.exp(-k*(step-x0))))
     elif anneal_function == 'linear':
@@ -60,6 +79,8 @@ def kl_anneal_function(anneal_function, step, k, x0):
 
 # Reconstruction + KL divergence losses summed over all elements and batch
 def loss_function(recon_x, x, mu, logvar, beta):
+    """ Compute the loss function between recon_x (output of the VAE) and x (input of the VAE)
+    """
     BCE = F.binary_cross_entropy(recon_x, x.view(-1, 784), reduction='sum')
     # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
     #KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())

@@ -4,36 +4,38 @@ import torch.nn.utils.rnn as rnn_utils
 from data_loader_RVAE import sentence_to_tensor, tensor_to_sentence
 
 class RVAE(nn.Module):
+    # Considered chords
     N_PITCH = 12
-    N_MAIN_QUALITY = 3 # A changer aussi dans data_loader
+    N_MAIN_QUALITY = 3
     N_EXTRA_QUALITY = 3
+    # Ration between HIDDEN dimenstion and LATENT dimension
     N_RATIO = 4
     N_LATENT = 8
     N_HIDDEN = N_LATENT*N_RATIO
+
     N_INPUT = N_PITCH * N_MAIN_QUALITY + N_EXTRA_QUALITY + 2
     word_dropout_rate = 0.75
-    N_LAYERS=1
+    N_LAYERS=1 # N layers in the RNN encoder / decoder
     no_chords = torch.zeros(N_INPUT)
     if torch.cuda.is_available():
         no_chords = no_chords.cuda()
+    
     def __init__(self, max_sequence_length,rnn_type="gru",bidirectional=True):
-        
-        
         super(RVAE, self).__init__()
         
         self.tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
-        self.max_sequence_length = max_sequence_length
 
+        self.max_sequence_length = max_sequence_length
         self.rnn_type = rnn_type
         self.bidirectional = bidirectional
         if self.rnn_type == 'rnn':
             rnn = nn.RNN
         elif self.rnn_type == 'gru':
             rnn = nn.GRU
-
         else:
             raise ValueError()
 
+        # Architecture definition
         self.encoder_rnn = rnn(self.N_INPUT, self.N_HIDDEN, num_layers=self.N_LAYERS, bidirectional=self.bidirectional,
                                batch_first=True)
         self.decoder_rnn = rnn(self.N_INPUT, self.N_HIDDEN, num_layers=self.N_LAYERS, bidirectional=self.bidirectional,
@@ -48,13 +50,13 @@ class RVAE(nn.Module):
     
 
     def forward(self, input_sequence, length):
-
+        """ Forward pass in the VAE
+        """
         batch_size = input_sequence.size(0)
         sorted_lengths, sorted_idx = torch.sort(length, descending=True)
         input_sequence = input_sequence[sorted_idx]
 
         # ENCODER
-        
         packed_input = rnn_utils.pack_padded_sequence(input_sequence, sorted_lengths.data.tolist(), batch_first=True)
 
         _, hidden = self.encoder_rnn(packed_input)
@@ -85,7 +87,7 @@ class RVAE(nn.Module):
 
         # decoder input
         if self.word_dropout_rate > 0:
-            # randomly replace decoder input with <unk>
+            # randomly replace decoder input with no_chords
             d1, d2, _ = input_sequence.size()
             prob = torch.rand((d1,d2))
             prob[:,0] = 1 # Not to change start token
@@ -120,8 +122,11 @@ class RVAE(nn.Module):
         
         return recons, mean, logv, z
 
-    def inference(self, n=4, z=None):
 
+
+    def inference(self, n=4, z=None):
+        """ Inference from a latent space
+        """
         if z is None:
             batch_size = n
             if torch.cuda.is_available():
@@ -152,8 +157,6 @@ class RVAE(nn.Module):
 
         t = 0
         while t < self.max_sequence_length and len(running_seqs) > 0:
-
-
 
             output, hidden = self.decoder_rnn(input_sequence[:, :t+1], hidden)
 
