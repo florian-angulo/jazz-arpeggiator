@@ -11,12 +11,8 @@ import torch
 import torch.utils.data
 from torch import nn, optim
 from torch.nn import functional as F
-from torchvision import datasets, transforms
-from torchvision.utils import save_image
 import data_loader
-import sample_to_chords as s2c
-import itertools
-import matplotlib.pyplot as plt
+
 
 if torch.cuda.is_available():  
   dev = "cuda:0" 
@@ -40,12 +36,18 @@ class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
 
-        self.fc1 = nn.Linear(self.N_CHORDS * (self.N_PITCH * self.N_MAIN_QUALITY + self.N_EXTRA_QUALITY), self.SIZE_HIDDEN)
+        self.fc1 = nn.Linear(self.N_CHORDS * (self.N_PITCH \
+                                              * self.N_MAIN_QUALITY \
+                                              + self.N_EXTRA_QUALITY), \
+                             self.SIZE_HIDDEN)
         self.fc21 = nn.Linear(self.SIZE_HIDDEN, self.SIZE_LATENT)
         self.fc22 = nn.Linear(self.SIZE_HIDDEN, self.SIZE_LATENT)
         
         self.fc3 = nn.Linear(self.SIZE_LATENT, self.SIZE_HIDDEN)
-        self.fc4 = nn.Linear(self.SIZE_HIDDEN, self.N_CHORDS * (self.N_PITCH * self.N_MAIN_QUALITY + self.N_EXTRA_QUALITY))
+        self.fc4 = nn.Linear(self.SIZE_HIDDEN, self.N_CHORDS * \
+                                               (self.N_PITCH \
+                                                * self.N_MAIN_QUALITY \
+                                                + self.N_EXTRA_QUALITY))
 
     def encode(self, x):
         h1 = F.relu(self.fc1(x))
@@ -59,10 +61,15 @@ class VAE(nn.Module):
     def decode(self, z):
         h3 = F.relu(self.fc3(z))
         soft = nn.Sigmoid()
-        return soft(self.fc4(h3).view(-1, self.N_CHORDS, self.N_PITCH * self.N_MAIN_QUALITY + self.N_EXTRA_QUALITY))
+        return soft(self.fc4(h3).view(-1, self.N_CHORDS, self.N_PITCH \
+                                      * self.N_MAIN_QUALITY \
+                                      + self.N_EXTRA_QUALITY))
 
     def forward(self, x):
-        mu, logvar = self.encode(x.view(-1, self.N_CHORDS*(self.N_PITCH * self.N_MAIN_QUALITY + self.N_EXTRA_QUALITY)))
+        mu, logvar = self.encode(x.view(-1, self.N_CHORDS \
+                                        * (self.N_PITCH \
+                                           * self.N_MAIN_QUALITY \
+                                           + self.N_EXTRA_QUALITY)))
         z = self.reparameterize(mu, logvar)
         return self.decode(z), mu, logvar
 
@@ -94,7 +101,8 @@ def kl_anneal_function(anneal_function, step, k, x0):
 
 # Reconstruction + KL divergence losses summed over all elements and batch
 def loss_function(recon_x, x, mu, logvar, beta):
-    BCE = F.binary_cross_entropy(recon_x.view(-1, 16*(12*3+3)), x.view(-1, 16*(12*3+3)), reduction='sum')
+    BCE = F.binary_cross_entropy(recon_x.view(-1, 16*(12*3+3)), \
+                                 x.view(-1, 16*(12*3+3)), reduction='sum')
     
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
     return BCE + beta*KLD
@@ -149,8 +157,8 @@ if __name__ == "__main__":
             train()
         torch.save(model.state_dict(), "./model_realbook.pt")
         with torch.no_grad():
-            inp = realbook_dataset[0]
+            inp = realbook_dataset[0].to(device)
             inp = inp[0:3]
             out, mu, logvar = model(inp)
-            inp = inp.numpy()
-            out = out.numpy()
+            inp = inp.cpu().numpy()
+            out = out.cpu().numpy()
