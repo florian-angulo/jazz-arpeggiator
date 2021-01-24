@@ -79,7 +79,8 @@ def kl_anneal_function(anneal_function, step, k, x0):
 
 # Reconstruction + KL divergence losses summed over all elements and batch
 def loss_function(recon_x, x, mu, logvar, beta):
-    """ Compute the loss function between recon_x (output of the VAE) and x (input of the VAE)
+    """ Compute the loss function between recon_x (output of the VAE) 
+    and x (input of the VAE)
     """
     BCE = F.binary_cross_entropy(recon_x, x.view(-1, 784), reduction='sum')
 
@@ -128,13 +129,17 @@ def test():
             recon_batch, mu, logvar = model(data)
             beta = kl_anneal_function('linear', test_step, 1,
                                       10*len(mnist_testset))
-            test_loss += loss_function(recon_batch, data, mu, logvar, beta).item()
+            test_loss += loss_function(recon_batch, data, mu, \
+                                       logvar, beta).item()
             test_step += 1
 
             if i == 0:
                 n = min(data.size(0), 8)
-                comparison = torch.cat([data[:n], recon_batch.view(batch_size, 1, 28, 28)[:n]])
-                save_image(comparison.to(device), '/results/reconstruction_' + str(epoch) + '.png', nrow=n)
+                comparison = torch.cat([data[:n], \
+                                recon_batch.view(batch_size, 1, 28, 28)[:n]])
+                save_image(comparison.to(device), \
+                           '/results/reconstruction_' + str(epoch) + '.png', \
+                           nrow=n)
 
     test_loss /= len(mnist_testset.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
